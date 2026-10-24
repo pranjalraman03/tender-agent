@@ -1,0 +1,25 @@
+# One image for api, worker and scheduler; Railway picks the start command per service.
+FROM python:3.12-slim
+
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy PYTHONUNBUFFERED=1
+
+WORKDIR /app
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY alembic.ini ./
+COPY core ./core
+COPY apps/api ./apps/api
+COPY apps/worker ./apps/worker
+COPY apps/scheduler ./apps/scheduler
+COPY apps/__init__.py ./apps/__init__.py
+COPY scripts ./scripts
+RUN uv sync --frozen --no-dev
+
+ENV PATH="/app/.venv/bin:$PATH"
+RUN useradd --create-home app
+USER app
+
+EXPOSE 8000
+CMD ["sh", "-c", "uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

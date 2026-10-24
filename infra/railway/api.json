@@ -1,0 +1,10 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": { "builder": "DOCKERFILE", "dockerfilePath": "infra/Dockerfile.backend" },
+  "deploy": {
+    "preDeployCommand": ["alembic upgrade head"],
+    "startCommand": "sh -c 'uvicorn apps.api.main:app --host 0.0.0.0 --port ${PORT:-8000}'",
+    "healthcheckPath": "/health/ready",
+    "restartPolicyType": "ON_FAILURE"
+  }
+}
