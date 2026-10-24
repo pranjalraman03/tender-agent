@@ -1,10 +1,10 @@
 """Seed reference data: industries and the NIC -> industry map. Safe to re-run (upserts).
 
-Portals are added when the first crawler is chosen (see the access check).
 The industry list and NIC map are a first draft; review before relying on them.
 """
 
 import asyncio
+import json
 
 from sqlalchemy import text
 
@@ -59,8 +59,24 @@ NIC_MAP = [
 ]
 
 
+# name, base_url, crawl_cfg. min_interval_s is the gap between requests to the portal.
+PORTALS = [
+    ("cppp", "https://eprocure.gov.in", {"min_interval_s": 3, "max_detail_pages": 20}),
+]
+
+
 async def main() -> None:
     async with system_transaction() as s:
+        for name, base_url, cfg in PORTALS:
+            await s.execute(
+                text(
+                    "INSERT INTO portals (name, base_url, crawl_cfg) "
+                    "VALUES (:name, :url, CAST(:cfg AS jsonb)) "
+                    "ON CONFLICT (name) DO UPDATE SET base_url = EXCLUDED.base_url, "
+                    "crawl_cfg = EXCLUDED.crawl_cfg"
+                ),
+                {"name": name, "url": base_url, "cfg": json.dumps(cfg)},
+            )
         for slug, name in INDUSTRIES:
             await s.execute(
                 text(
@@ -77,7 +93,9 @@ async def main() -> None:
                 ),
                 {"p": prefix, "s": slug},
             )
-    print(f"seeded {len(INDUSTRIES)} industries, {len(NIC_MAP)} NIC prefixes")  # noqa: T201
+    print(
+        f"seeded {len(PORTALS)} portals, {len(INDUSTRIES)} industries, {len(NIC_MAP)} NIC prefixes"
+    )  # noqa: T201
 
 
 if __name__ == "__main__":

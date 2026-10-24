@@ -80,8 +80,11 @@ async def enqueue(
     return result.scalar_one_or_none()
 
 
-async def claim(session: AsyncSession) -> Job | None:
-    """Take the next due job and mark it running. The caller commits."""
+async def claim(session: AsyncSession, kinds: list[str] | None = None) -> Job | None:
+    """Take the next due job and mark it running. The caller commits.
+
+    `kinds` limits the claim to job kinds this worker can run (None = any kind).
+    """
     row = (
         await session.execute(
             text("""
@@ -91,12 +94,14 @@ async def claim(session: AsyncSession) -> Job | None:
                 WHERE id = (
                     SELECT id FROM jobs
                     WHERE status = 'queued' AND run_after <= now()
+                      AND (CAST(:kinds AS text[]) IS NULL OR kind = ANY(CAST(:kinds AS text[])))
                     ORDER BY run_after
                     FOR UPDATE SKIP LOCKED
                     LIMIT 1
                 )
                 RETURNING id, kind, payload, idempotency_key, attempts, max_attempts
-            """)
+            """),
+            {"kinds": kinds},
         )
     ).one_or_none()
     if row is None:

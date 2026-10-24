@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from core import queue
 from core.db.session import set_system_context
-from core.jobs import Handler, get_handler
+from core.jobs import HANDLERS, Handler
 
 log = structlog.get_logger()
 
@@ -18,11 +18,12 @@ async def run_once(
 ) -> bool:
     """Process at most one job. Returns False if there was nothing to do.
 
-    `handlers` overrides the registry (used by tests).
+    `handlers` overrides the registry (used by tests). Only kinds with a handler are claimed.
     """
+    registry = HANDLERS if handlers is None else handlers
     async with sessionmaker() as session, session.begin():
         await set_system_context(session)
-        job = await queue.claim(session)
+        job = await queue.claim(session, kinds=list(registry))
     if job is None:
         return False
 
@@ -30,7 +31,7 @@ async def run_once(
         job_id=job.id, job_kind=job.kind, attempt=job.attempts
     ):
         try:
-            handler = handlers[job.kind] if handlers is not None else get_handler(job.kind)
+            handler = registry[job.kind]
             async with sessionmaker() as session, session.begin():
                 await set_system_context(session)
                 await handler(job.payload, session)

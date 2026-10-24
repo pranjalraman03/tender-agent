@@ -12,16 +12,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 Handler = Callable[[dict[str, Any], AsyncSession], Awaitable[None]]
 
-# Filled in as job kinds are implemented, e.g. {"crawl": crawl.handle}.
-HANDLERS: dict[str, Handler] = {}
+
+def _registry() -> dict[str, Handler]:
+    from core.jobs import crawl
+
+    return {"crawl": crawl.handle}
 
 
-class UnknownJobKind(Exception):
-    pass
-
-
-def get_handler(kind: str) -> Handler:
-    try:
-        return HANDLERS[kind]
-    except KeyError:
-        raise UnknownJobKind(kind) from None
+# Kinds without a handler yet (e.g. `download` before build step 2) stay queued: the worker
+# only claims kinds listed here.
+HANDLERS: dict[str, Handler] = _registry()

@@ -160,10 +160,15 @@ async def test_run_once_rolls_back_handler_writes_on_failure(sessionmaker: SM) -
         assert (await s.execute(text("SELECT count(*) FROM jobs"))).scalar_one() == 1
 
 
-async def test_run_once_unknown_kind_fails_job(sessionmaker: SM) -> None:
-    job_id = await _enqueue(sessionmaker, "x", kind="no_such_kind")
-    assert await run_once(sessionmaker, {}) is True
-    assert (await _job_row(sessionmaker, job_id)).status == "queued"
+async def test_run_once_skips_kinds_without_a_handler(sessionmaker: SM) -> None:
+    job_id = await _enqueue(sessionmaker, "x", kind="not_built_yet")
+    assert await run_once(sessionmaker, {"other": _noop}) is False
+    row = await _job_row(sessionmaker, job_id)
+    assert row.status == "queued" and row.attempts == 0
+
+
+async def _noop(payload: dict[str, Any], session: AsyncSession) -> None:
+    return None
 
 
 async def test_run_once_with_empty_queue(sessionmaker: SM) -> None:
