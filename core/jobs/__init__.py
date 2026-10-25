@@ -21,6 +21,9 @@ KINDS: dict[str, bool] = {
     "parse": False,
     "index": True,
     "fit_check": True,
+    "extract_profile": True,
+    "match_profile": False,
+    "match_tender": False,
 }
 
 

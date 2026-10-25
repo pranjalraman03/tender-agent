@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     rerank_model: str = "Xenova/ms-marco-MiniLM-L-6-v2"
     model_cache_dir: str = "var/models"
 
+    # Matching. Max tender value = turnover / this ratio (CPWD norm: turnover >= 30% of the
+    # estimated cost). Tenders without a value, or profiles without turnover, aren't filtered.
+    match_min_turnover_ratio: float = 0.3
+    match_shortlist: int = 50  # stage 2 limit
+    match_fit_check_top: int = 30  # stage 3: agent runs on this many
+
     # Agent budgets per eligibility run.
     agent_max_tool_calls: int = 40
     agent_max_tokens: int = 400_000
