@@ -13,12 +13,29 @@ from sqlalchemy.ext.asyncio import AsyncSession
 Handler = Callable[[dict[str, Any], AsyncSession], Awaitable[None]]
 
 
+# kind -> needs the Claude API. Without ANTHROPIC_API_KEY those kinds are not registered,
+# so their jobs wait in the queue (instead of failing and dead-lettering) until a key is set.
+KINDS: dict[str, bool] = {
+    "crawl": False,
+    "download": False,
+    "parse": False,
+    "index": True,
+}
+
+
 def _registry() -> dict[str, Handler]:
-    from core.jobs import crawl
+    import importlib
 
-    return {"crawl": crawl.handle}
+    from core.config import get_settings
+
+    llm_ok = get_settings().llm_configured
+    return {
+        kind: importlib.import_module(f"core.jobs.{kind}").handle
+        for kind, needs_llm in KINDS.items()
+        if llm_ok or not needs_llm
+    }
 
 
-# Kinds without a handler yet (e.g. `download` before build step 2) stay queued: the worker
-# only claims kinds listed here.
+# Kinds without a handler yet, or LLM kinds without a key, stay queued: the worker only
+# claims kinds listed here.
 HANDLERS: dict[str, Handler] = _registry()
