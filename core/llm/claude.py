@@ -25,6 +25,7 @@ from sqlalchemy import text
 
 from core.config import get_settings
 from core.db.session import system_transaction
+from core.llm.openai_compat import OpenAICompatClient
 
 log = structlog.get_logger()
 
@@ -90,6 +91,8 @@ class Usage:
 
 
 def cost_usd(model: str, usage: Any) -> Decimal:
+    if get_settings().llm_provider == "openai_compat":
+        return Decimal("0")  # free-tier testing provider
     prices = PRICES.get(model)
     if prices is None:
         log.warning("llm_unknown_model_price", model=model)
@@ -108,6 +111,8 @@ def cost_usd(model: str, usage: Any) -> Decimal:
 
 def model_for(tier: Tier) -> str:
     s = get_settings()
+    if s.llm_provider == "openai_compat":
+        return s.openai_compat_model_strong if tier == "strong" else s.openai_compat_model_fast
     return s.llm_model_strong if tier == "strong" else s.llm_model_fast
 
 
@@ -147,16 +152,29 @@ def strict_schema(model: type[BaseModel]) -> dict[str, Any]:
 
 
 class Claude:
+    """The LLM client every caller uses. Talks to the Claude API, or - with
+    LLM_PROVIDER=openai_compat - to an OpenAI-compatible API (see openai_compat.py) that
+    returns the same shapes."""
+
     def __init__(self, client: anthropic.AsyncAnthropic | None = None) -> None:
         settings = get_settings()
-        if client is None:
+        self.compat: OpenAICompatClient | None = None
+        if client is None and settings.llm_provider == "openai_compat":
+            if not settings.llm_configured:
+                raise LLMNotConfigured("OPENAI_COMPAT_API_KEY is not set")
+            self.compat = OpenAICompatClient(
+                settings.openai_compat_base_url,
+                settings.openai_compat_api_key.get_secret_value(),
+            )
+        elif client is None:
             if not settings.llm_configured:
                 raise LLMNotConfigured("ANTHROPIC_API_KEY is not set")
             client = anthropic.AsyncAnthropic(
                 api_key=settings.anthropic_api_key.get_secret_value(), max_retries=3
             )
         self.client = client
-        self.fallback = settings.llm_refusal_fallback
+        # Claude-only server-side refusal fallback.
+        self.fallback = settings.llm_refusal_fallback and self.compat is None
 
     def _request(
         self,
@@ -221,7 +239,10 @@ class Claude:
         """One Messages API call. Returns (message, usage). Raises LLMRefusal on refusal."""
         kwargs = self._request(tier, system, messages, max_tokens, effort, tools, output_schema)
         started = time.monotonic()
-        response = await self.client.beta.messages.create(**kwargs)
+        if self.compat is not None:
+            response = await self.compat.create(**kwargs)
+        else:
+            response = await self.client.beta.messages.create(**kwargs)  # type: ignore[union-attr]
         return response, await self._finish(ctx, kwargs["model"], response, started)
 
     async def stream(
@@ -239,7 +260,16 @@ class Claude:
         and ("usage", Usage) once the response is complete."""
         kwargs = self._request(tier, system, messages, max_tokens, effort, tools, None)
         started = time.monotonic()
-        async with self.client.beta.messages.stream(**kwargs) as stream:
+        if self.compat is not None:  # streaming emulated: one chunk
+            response = await self.compat.create(**kwargs)
+            text = "".join(b.text for b in response.content if b.type == "text")
+            if text:
+                yield "text", text
+            usage = await self._finish(ctx, kwargs["model"], response, started)
+            yield "final", response
+            yield "usage", usage
+            return
+        async with self.client.beta.messages.stream(**kwargs) as stream:  # type: ignore[union-attr]
             async for delta in stream.text_stream:
                 yield "text", delta
             final = await stream.get_final_message()

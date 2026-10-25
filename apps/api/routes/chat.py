@@ -38,7 +38,7 @@ async def chat(
     tender_id: int, body: ChatRequest, user: MaybeUser, request: Request
 ) -> StreamingResponse:
     if not get_settings().llm_configured:
-        raise HTTPException(503, "chat needs ANTHROPIC_API_KEY to be configured")
+        raise HTTPException(503, "chat needs an LLM API key to be configured")
     if user:
         await rate_limit(f"chat:user:{user.id}", limit=60, window_s=3600)
     else:

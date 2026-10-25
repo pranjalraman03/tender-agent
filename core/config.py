@@ -26,7 +26,16 @@ class Settings(BaseSettings):
     storage_access_key: SecretStr = SecretStr("")
     storage_secret_key: SecretStr = SecretStr("")
 
-    # LLM. Model IDs per https://docs.claude.com (checked 2026-10-25).
+    # LLM provider. "anthropic" = Claude API (production design). "openai_compat" = any
+    # OpenAI-compatible API, default Groq's free tier with open-weight models, for testing
+    # without a Claude key.
+    llm_provider: Literal["anthropic", "openai_compat"] = "anthropic"
+    openai_compat_base_url: str = "https://api.groq.com/openai/v1"
+    openai_compat_api_key: SecretStr = SecretStr("")
+    openai_compat_model_fast: str = "openai/gpt-oss-20b"
+    openai_compat_model_strong: str = "openai/gpt-oss-120b"
+
+    # Claude. Model IDs per https://docs.claude.com (checked 2026-10-25).
     anthropic_api_key: SecretStr = SecretStr("")
     llm_model_fast: str = "claude-sonnet-5-5"  # extraction, classification, verification
     llm_model_strong: str = "claude-opus-5-5"  # eligibility check
@@ -83,6 +92,8 @@ class Settings(BaseSettings):
 
     @property
     def llm_configured(self) -> bool:
+        if self.llm_provider == "openai_compat":
+            return bool(self.openai_compat_api_key.get_secret_value())
         return bool(self.anthropic_api_key.get_secret_value())
 
 
