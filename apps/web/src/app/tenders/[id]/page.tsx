@@ -4,10 +4,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { TenderWorkspace } from "@/components/tender/workspace";
-import { Badge } from "@/components/ui/badge";
+import { DeadlineChip } from "@/components/deadline-chip";
 import { Button } from "@/components/ui/button";
 import { UploadButton } from "@/components/upload-button";
-import { closesIn, formatDate, formatDateTime, formatInr, industryName } from "@/lib/format";
+import { formatDate, formatDateTime, formatInr, industryName } from "@/lib/format";
 import { ApiError, serverApi } from "@/lib/server-api";
 import type { Me, Meta, TenderDetail } from "@/lib/types";
 
@@ -47,29 +47,39 @@ export default async function TenderPage({ params }: PageProps<"/tenders/[id]">)
   ];
 
   return (
-    <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
+    <div className="mx-auto grid max-w-7xl gap-8 px-4 py-8 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <section className="space-y-5">
         <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}><ArrowLeftIcon />All tenders</Button>
         <div className="space-y-2">
-          <div className="flex flex-wrap gap-1.5">
-            {tender.industries.map((i) => <Badge key={i} variant="secondary">{industryName(i, meta.industries)}</Badge>)}
-            <Badge variant="outline">{closesIn(tender.closes_at)}</Badge>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <DeadlineChip closesAt={tender.closes_at} />
+            {tender.industries.map((i) => (
+              <span key={i} className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-accent-foreground">
+                {industryName(i, meta.industries)}
+              </span>
+            ))}
           </div>
-          <h1 className="text-xl font-semibold leading-snug">{tender.title}</h1>
-          <p className="text-sm text-muted-foreground">{tender.org_name}</p>
+          <h1 className="text-2xl font-semibold leading-snug">{tender.title}</h1>
+          <p className="text-sm font-medium text-muted-foreground">{tender.org_name}</p>
         </div>
-        {tender.summary && <p className="text-sm leading-relaxed">{tender.summary}</p>}
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border p-4 text-sm">
+        {tender.summary && (
+          <p className="border-l-2 border-primary/40 pl-3 text-sm leading-relaxed text-foreground/85">{tender.summary}</p>
+        )}
+        <dl className="surface grid grid-cols-2 gap-x-6 gap-y-4 p-5 text-sm">
           {facts.map(([k, v]) => (
-            <div key={k}><dt className="text-xs text-muted-foreground">{k}</dt><dd className="font-medium">{v}</dd></div>
+            <div key={k}>
+              <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{k}</dt>
+              <dd className="mt-0.5 font-medium tabular-nums">{v}</dd>
+            </div>
           ))}
         </dl>
         {tender.events.length > 0 && (
           <div className="space-y-2">
-            <h2 className="text-sm font-medium">Timeline</h2>
-            <ol className="space-y-1.5 border-l pl-4 text-sm">
+            <h2 className="text-sm font-semibold">Timeline</h2>
+            <ol className="space-y-2.5 border-l pl-5 text-sm">
               {tender.events.map((e, i) => (
-                <li key={i}>
+                <li key={i} className="relative">
+                  <span className="absolute -left-[25px] top-1.5 size-2.5 rounded-full border-2 border-background bg-primary" />
                   <span className="font-medium">{EVENT_LABEL[e.kind] ?? e.kind}</span>{" "}
                   <span className="text-muted-foreground">· {formatDate(e.detected_at)}</span>
                   {e.kind === "extended" && e.new_value?.closes_at ? (

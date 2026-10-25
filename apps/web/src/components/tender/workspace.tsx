@@ -35,7 +35,7 @@ export function TenderWorkspace({ tender, signedIn, hasProfile, llmConfigured }:
 
   return (
     <WorkspaceContext value={ctx}>
-      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="flex h-[calc(100vh-8rem)] flex-col rounded-xl border bg-card">
+      <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="surface flex h-[calc(100vh-9rem)] flex-col overflow-hidden lg:sticky lg:top-24">
         <TabsList className="m-2">
           {signedIn && <TabsTrigger value="eligibility">My eligibility</TabsTrigger>}
           <TabsTrigger value="documents">Documents</TabsTrigger>

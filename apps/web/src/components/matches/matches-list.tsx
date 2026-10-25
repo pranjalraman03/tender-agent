@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookmarkIcon, EyeOffIcon, Loader2Icon, SendIcon, WifiIcon } from "lucide-react";
+import { BookmarkIcon, Building2Icon, EyeOffIcon, InboxIcon, Loader2Icon, SendIcon, WifiIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { EmptyState } from "@/components/empty-state";
 import { MultiSelect } from "@/components/multi-select";
 import { TenderCard } from "@/components/tender-card";
 import { VerdictBadge } from "@/components/tender/report-panel";
@@ -53,11 +54,10 @@ export function MatchesList({ meta, hasProfile }: { meta: Meta; hasProfile: bool
 
   if (!hasProfile) {
     return (
-      <div className="rounded-xl border border-dashed p-10 text-center">
-        <h2 className="font-medium">Confirm your company profile to see matches</h2>
-        <p className="mt-1 text-sm text-muted-foreground">We use it to shortlist live tenders and check eligibility.</p>
-        <Button className="mt-4" nativeButton={false} render={<Link href="/onboarding" />}>Set up profile</Button>
-      </div>
+      <EmptyState icon={Building2Icon} title="Confirm your company profile to see matches"
+                  description="We use it to shortlist live tenders and check eligibility.">
+        <Button nativeButton={false} render={<Link href="/onboarding" />}>Set up profile</Button>
+      </EmptyState>
     );
   }
 
@@ -69,8 +69,8 @@ export function MatchesList({ meta, hasProfile }: { meta: Meta; hasProfile: bool
         <MultiSelect label="States" value={states} onChange={setStates} options={meta.states.map((s) => ({ value: s, label: s }))} />
         <MultiSelect label="Industries" value={industries} onChange={setIndustries}
                      options={meta.industries.map((i) => ({ value: i.slug, label: i.name }))} />
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-          <WifiIcon className={`size-3.5 ${live ? "text-emerald-600" : ""}`} />{live ? "Live" : "Connecting…"}
+        <span className="ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs text-muted-foreground">
+          <WifiIcon className={`size-3.5 ${live ? "text-emerald-600" : ""}`} />{live ? "Live updates" : "Connecting…"}
         </span>
       </div>
       {checking > 0 && (
@@ -84,9 +84,8 @@ export function MatchesList({ meta, hasProfile }: { meta: Meta; hasProfile: bool
       {matches.isLoading ? (
         <div className="space-y-3">{[0, 1, 2].map((i) => <Skeleton key={i} className="h-28" />)}</div>
       ) : (matches.data ?? []).length === 0 ? (
-        <div className="rounded-xl border border-dashed p-10 text-center text-sm text-muted-foreground">
-          No matches yet. New tenders are matched as soon as they’re indexed.
-        </div>
+        <EmptyState icon={InboxIcon} title="No matches yet"
+                    description="New tenders are matched to your profile as soon as they’re indexed." />
       ) : (
         <div className="grid gap-3">
           {matches.data!.map((m) => (

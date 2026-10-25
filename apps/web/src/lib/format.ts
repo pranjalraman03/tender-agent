@@ -62,3 +62,17 @@ export function isClosingSoon(iso: string | null | undefined, now: Date = new Da
   const ms = new Date(iso).getTime() - now.getTime();
   return ms >= 0 && ms < 3 * 86_400_000;
 }
+
+/** "Delhi Development Authority" -> "DD"; used for small avatar badges. */
+export function initials(name: string | null | undefined): string {
+  const words = (name ?? "").replace(/\(.*?\)/g, "").split(/\s+/).filter((w) => /^[A-Za-z]/.test(w));
+  const picked = words.filter((w) => !["of", "and", "the", "for", "&"].includes(w.toLowerCase()));
+  return ((picked[0]?.[0] ?? "") + (picked[1]?.[0] ?? "")).toUpperCase() || "—";
+}
+
+/** Urgency of a deadline: "urgent" (< 3 days), "soon" (< 7 days) or "normal". */
+export function urgency(iso: string | null | undefined, now: Date = new Date()): "urgent" | "soon" | "normal" {
+  if (!iso) return "normal";
+  const days = (new Date(iso).getTime() - now.getTime()) / 86_400_000;
+  return days < 3 ? "urgent" : days < 7 ? "soon" : "normal";
+}

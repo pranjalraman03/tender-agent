@@ -20,8 +20,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Providers>
           <SiteHeader />
           <main className="flex-1">{children}</main>
-          <footer className="border-t py-6 text-center text-xs text-muted-foreground">
-            Tender data from public government portals. Always verify eligibility against the official tender documents.
+          <footer className="mt-12 border-t">
+            <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-6 text-xs text-muted-foreground">
+              <span>Tender data from public government portals.</span>
+              <span>Always verify eligibility against the official tender documents.</span>
+            </div>
           </footer>
         </Providers>
       </body>

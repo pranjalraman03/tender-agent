@@ -1,9 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangleIcon, CheckCircle2Icon, CircleHelpIcon, Loader2Icon, ShieldCheckIcon, XCircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, ClipboardCheckIcon, CircleHelpIcon, Loader2Icon, ShieldCheckIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
+import { EmptyState as Empty } from "@/components/empty-state";
 import { Citation } from "@/components/tender/citation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -13,12 +14,13 @@ import { api, ApiError } from "@/lib/api";
 import { formatDateTime, STATUS_LABEL, VERDICT_LABEL } from "@/lib/format";
 import type { Report } from "@/lib/types";
 
-const STATUS_STYLE: Record<string, { icon: typeof CheckCircle2Icon; className: string }> = {
-  met: { icon: CheckCircle2Icon, className: "text-emerald-600 dark:text-emerald-400" },
-  exempt: { icon: ShieldCheckIcon, className: "text-sky-600 dark:text-sky-400" },
-  not_met: { icon: XCircleIcon, className: "text-red-600 dark:text-red-400" },
-  unclear: { icon: CircleHelpIcon, className: "text-amber-600 dark:text-amber-400" },
+const STATUS_STYLE: Record<string, { icon: typeof CheckCircle2Icon; className: string; edge: string }> = {
+  met: { icon: CheckCircle2Icon, className: "text-emerald-600 dark:text-emerald-400", edge: "border-l-emerald-500" },
+  exempt: { icon: ShieldCheckIcon, className: "text-sky-600 dark:text-sky-400", edge: "border-l-sky-500" },
+  not_met: { icon: XCircleIcon, className: "text-red-600 dark:text-red-400", edge: "border-l-red-500" },
+  unclear: { icon: CircleHelpIcon, className: "text-amber-600 dark:text-amber-400", edge: "border-l-amber-500" },
 };
+const STATUS_ORDER = ["met", "exempt", "unclear", "not_met"] as const;
 
 const VERDICT_STYLE: Record<string, string> = {
   eligible: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300",
@@ -28,7 +30,11 @@ const VERDICT_STYLE: Record<string, string> = {
 };
 
 export function VerdictBadge({ verdict }: { verdict: string }) {
-  return <Badge className={`${VERDICT_STYLE[verdict] ?? ""} border-0`}>{VERDICT_LABEL[verdict] ?? verdict}</Badge>;
+  return (
+    <Badge className={`${VERDICT_STYLE[verdict] ?? ""} gap-1.5 border-0 px-2.5 font-semibold`}>
+      <span className="size-1.5 rounded-full bg-current" />{VERDICT_LABEL[verdict] ?? verdict}
+    </Badge>
+  );
 }
 
 type Status = { status: string | null; last_error: string | null; llm_configured: boolean };
@@ -92,6 +98,20 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
         </EmptyState>
       ) : (
         <>
+          <div className="grid grid-cols-4 gap-2">
+            {STATUS_ORDER.map((st) => {
+              const count = data.findings.filter((f) => f.status === st).length;
+              const Icon = STATUS_STYLE[st].icon;
+              return (
+                <div key={st} className="rounded-lg border bg-background/60 px-3 py-2">
+                  <div className={`flex items-center gap-1.5 text-xs font-medium ${STATUS_STYLE[st].className}`}>
+                    <Icon className="size-3.5" />{STATUS_LABEL[st]}
+                  </div>
+                  <div className="text-xl font-semibold tabular-nums">{count}</div>
+                </div>
+              );
+            })}
+          </div>
           <div className="flex flex-wrap items-center gap-3">
             <VerdictBadge verdict={data.verdict} />
             <span className="text-xs text-muted-foreground">
@@ -109,7 +129,7 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
               const style = STATUS_STYLE[f.status] ?? STATUS_STYLE.unclear;
               const Icon = style.icon;
               return (
-                <li key={f.criterion_id} className="rounded-lg border p-3">
+                <li key={f.criterion_id} className={`rounded-lg border border-l-4 bg-background/60 p-3.5 ${style.edge}`}>
                   <div className="flex items-start gap-2">
                     <Icon className={`mt-0.5 size-4 shrink-0 ${style.className}`} />
                     <div className="min-w-0 space-y-1">
@@ -140,11 +160,5 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
 }
 
 function EmptyState({ title, body, children }: { title: string; body: string; children?: React.ReactNode }) {
-  return (
-    <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed p-8 text-center">
-      <h3 className="font-medium">{title}</h3>
-      <p className="max-w-sm text-sm text-muted-foreground">{body}</p>
-      {children}
-    </div>
-  );
+  return <Empty icon={ClipboardCheckIcon} title={title} description={body}>{children}</Empty>;
 }

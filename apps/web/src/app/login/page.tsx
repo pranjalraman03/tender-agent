@@ -1,4 +1,4 @@
-import { MailIcon } from "lucide-react";
+import { LandmarkIcon, MailIcon } from "lucide-react";
 import { redirect } from "next/navigation";
 import { auth, devLoginEnabled, providerIds, signIn } from "@/auth";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -22,9 +22,12 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   const hasGoogle = providerIds.includes("google");
 
   return (
-    <div className="mx-auto flex max-w-md flex-col gap-4 px-4 py-16">
-      <Card>
-        <CardHeader>
+    <div className="dot-grid flex min-h-[calc(100vh-10rem)] items-center px-4 py-16">
+      <Card className="surface mx-auto w-full max-w-md">
+        <CardHeader className="space-y-3">
+          <span className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-primary to-primary/70 text-primary-foreground">
+            <LandmarkIcon className="size-5" />
+          </span>
           <CardTitle className="text-xl">Sign in to Tender Agent</CardTitle>
           <CardDescription>Get tenders matched to your company and eligibility reports.</CardDescription>
         </CardHeader>

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { auth, signOut } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
+import { MainNav } from "@/components/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { initials } from "@/lib/format";
 import { serverApi } from "@/lib/server-api";
 import type { Me } from "@/lib/types";
 
@@ -18,30 +21,30 @@ async function currentMe(): Promise<Me | null> {
 export async function SiteHeader() {
   const me = await currentMe();
   return (
-    <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-4">
-        <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
-          <span className="grid size-7 place-items-center rounded-md bg-primary text-xs font-bold text-primary-foreground">
-            TA
-          </span>
-          <span>Tender Agent</span>
-        </Link>
-        <nav className="flex items-center gap-1 text-sm">
-          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}>Tenders</Button>
-          {me && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/matches" />}>My matches</Button>}
-          {me && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/profile" />}>Company profile</Button>}
-          {me?.role === "admin" && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/admin" />}>Admin</Button>}
-        </nav>
+    <header className="sticky top-0 z-40 border-b bg-background/80 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-8 px-4">
+        <Logo />
+        <MainNav items={[
+          { href: "/", label: "Tenders" },
+          ...(me ? [{ href: "/matches", label: "My matches" }, { href: "/profile", label: "Company" }] : []),
+          ...(me?.role === "admin" ? [{ href: "/admin", label: "Admin" }] : []),
+        ]} />
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
           {me ? (
             <form
+              className="flex items-center"
               action={async () => {
                 "use server";
                 await signOut({ redirectTo: "/" });
               }}
             >
-              <span className="mr-3 hidden text-sm text-muted-foreground sm:inline">{me.org.name}</span>
+              <span className="mr-3 hidden items-center gap-2 text-sm sm:inline-flex">
+                <span className="grid size-6 place-items-center rounded-full bg-secondary text-[11px] font-semibold text-secondary-foreground">
+                  {initials(me.org.name)}
+                </span>
+                <span className="max-w-40 truncate text-muted-foreground">{me.org.name}</span>
+              </span>
               <Button variant="outline" size="sm" type="submit">Sign out</Button>
             </form>
           ) : (

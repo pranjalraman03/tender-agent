@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Citation } from "@/components/tender/citation";
+import { RichText } from "@/components/tender/rich-text";
 import { useClauses } from "@/components/tender/workspace-context";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -99,16 +100,16 @@ export function ChatPanel({ tenderId, llmConfigured }: { tenderId: number; llmCo
     setStreaming(false);
   }
 
-  function render(content: string): ReactNode[] {
+  function citations(segment: string, key: string): ReactNode[] {
     const parts: ReactNode[] = [];
     let last = 0;
-    for (const m of content.matchAll(CITATION)) {
-      parts.push(content.slice(last, m.index));
+    for (const m of segment.matchAll(CITATION)) {
+      parts.push(segment.slice(last, m.index));
       const clause = clauseById.get(Number(m[1]));
-      parts.push(clause ? <Citation key={`${m.index}`} clause={clause} /> : null);
+      parts.push(clause ? <Citation key={`${key}-${m.index}`} clause={clause} /> : null);
       last = (m.index ?? 0) + m[0].length;
     }
-    parts.push(content.slice(last));
+    parts.push(segment.slice(last));
     return parts;
   }
 
@@ -130,8 +131,11 @@ export function ChatPanel({ tenderId, llmConfigured }: { tenderId: number; llmCo
           <div key={i} className={t.role === "user" ? "flex justify-end" : ""}>
             <div className={t.role === "user"
               ? "max-w-[85%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground"
-              : "max-w-full whitespace-pre-wrap text-sm leading-relaxed"}>
-              {t.role === "assistant" ? (t.content ? render(t.content) : <Loader2Icon className="size-4 animate-spin text-muted-foreground" />) : t.content}
+              : "max-w-full text-sm leading-relaxed"}>
+              {t.role === "assistant"
+                ? (t.content ? <RichText text={t.content} renderInline={citations} />
+                  : <Loader2Icon className="size-4 animate-spin text-muted-foreground" />)
+                : t.content}
             </div>
           </div>
         ))}
