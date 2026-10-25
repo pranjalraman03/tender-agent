@@ -4,6 +4,7 @@ CPPP's public listing is only ~10 rows and gives no portal-unique id, so every r
 page is fetched and new tenders are detected by the (portal_id, tender_ref) unique key.
 """
 
+import json
 from typing import Any
 
 import httpx
@@ -15,6 +16,7 @@ from core import queue
 from core.config import get_settings
 from core.crawlers.base import Crawler, CrawlError, TenderDetail
 from core.crawlers.cppp import CpppCrawler
+from core.reference.states import state_from_pincode
 
 log = structlog.get_logger()
 
@@ -26,15 +28,24 @@ def build_crawler(portal: str, client: httpx.AsyncClient, cfg: dict[str, Any]) -
 
 
 async def insert_tender(session: AsyncSession, portal_id: int, d: TenderDetail) -> int | None:
-    """Insert a newly discovered tender. Returns its id, or None if it was already known."""
+    """Insert a newly discovered tender. Returns its id, or None if it was already known.
+
+    Known tenders crawled before `portal_fields` existed get those fields backfilled.
+    """
     result = await session.execute(
         text("""
             INSERT INTO tenders (portal_id, tender_ref, title, org_name, value_inr, emd_inr,
-                                 published_at, closes_at, source_url, pipeline_status)
+                                 published_at, closes_at, source_url, work_state,
+                                 portal_fields, pipeline_status)
             VALUES (:portal_id, :ref, :title, :org, :value, :emd, :published, :closes,
-                    :url, 'discovered')
-            ON CONFLICT (portal_id, tender_ref) DO NOTHING
-            RETURNING id
+                    :url, :state, CAST(:fields AS jsonb), 'discovered')
+            ON CONFLICT (portal_id, tender_ref) DO UPDATE
+              SET portal_fields = EXCLUDED.portal_fields,
+                  work_state = coalesce(tenders.work_state, EXCLUDED.work_state),
+                  updated_at = now()
+              WHERE tenders.portal_fields = '{}'::jsonb
+            -- xmax = 0 only for a freshly inserted row, not for a backfilled one.
+            RETURNING id, (xmax = 0) AS inserted
         """),
         {
             "portal_id": portal_id,
@@ -46,9 +57,12 @@ async def insert_tender(session: AsyncSession, portal_id: int, d: TenderDetail) 
             "published": d.published_at,
             "closes": d.closes_at,
             "url": d.source_url,
+            "state": state_from_pincode(d.raw.get("Pincode")),
+            "fields": json.dumps(d.raw),
         },
     )
-    return result.scalar_one_or_none()
+    row = result.one_or_none()
+    return int(row.id) if row is not None and row.inserted else None
 
 
 async def handle(payload: dict[str, Any], session: AsyncSession) -> None:

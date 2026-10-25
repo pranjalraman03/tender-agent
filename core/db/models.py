@@ -91,6 +91,8 @@ class Tender(Base):
     next_check_at: Mapped[datetime | None]
     scope_embedding: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source_url: Mapped[str | None] = mapped_column(Text)
+    portal_fields: Mapped[dict[str, Any]] = mapped_column(server_default="{}")
+    summary: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = _now()
 
@@ -101,6 +103,7 @@ class TenderDocument(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     tender_id: Mapped[int] = mapped_column(ForeignKey("tenders.id", ondelete="CASCADE"))
     storage_key: Mapped[str] = mapped_column(Text)
+    filename: Mapped[str | None] = mapped_column(Text)
     sha256: Mapped[str] = mapped_column(Text, unique=True)
     page_count: Mapped[int | None] = mapped_column(Integer)
     is_scanned: Mapped[bool] = mapped_column(Boolean, server_default="false")
@@ -264,6 +267,7 @@ class LlmCall(Base):
     cost_usd: Mapped[Decimal] = mapped_column(Numeric(12, 6))
     latency_ms: Mapped[int] = mapped_column(Integer)
     org_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    trace_id: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
 
 
