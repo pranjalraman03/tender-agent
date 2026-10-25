@@ -1,0 +1,93 @@
+{
+  "name": "syn_dda_streetlights_turnover_short",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/dda_streetlights.pdf"
+  ],
+  "tender": {
+    "title": "Annual maintenance of street lights, Dwarka",
+    "org_name": "Delhi Development Authority",
+    "industries": [
+      "electrical_works"
+    ]
+  },
+  "profile": {
+    "company_name": "Brightline Electricals (synthetic)",
+    "description": "Electrical contractor maintaining street lighting and outdoor lighting in Delhi NCR.",
+    "industries": [
+      "electrical_works"
+    ],
+    "states": [
+      "Delhi",
+      "Haryana"
+    ],
+    "msme_category": "small",
+    "is_msme": true,
+    "years_in_business": 8,
+    "certifications": [
+      "CPWD registration - Class IV (Electrical)",
+      "Electrical contractor licence, Govt of NCT of Delhi",
+      "Udyam registration"
+    ],
+    "past_projects": [
+      {
+        "title": "Maintenance of street lights, Rohini Sector 3-9",
+        "client": "MCD",
+        "value_inr": 2600000,
+        "year": 2023
+      },
+      {
+        "title": "Outdoor lighting AMC, Janakpuri",
+        "client": "DDA",
+        "value_inr": 2550000,
+        "year": 2025
+      }
+    ],
+    "annual_turnover_inr": 900000
+  },
+  "verdict": "not_eligible",
+  "criteria": [
+    {
+      "description": "Registered with CPWD/MES/State PWD/Central PSU for electrical works",
+      "status": "met",
+      "evidence": [
+        "registered with CPWD, MES, State PWD"
+      ],
+      "query": "registration of bidder with CPWD"
+    },
+    {
+      "description": "Average annual turnover at least Rs 14.55 lakh",
+      "status": "not_met",
+      "evidence": [
+        "at least Rs. 14.55 lakh"
+      ],
+      "query": "minimum average annual turnover"
+    },
+    {
+      "description": "Similar works experience: 3x19.40 / 2x24.25 / 1x38.80 lakh in last 7 years",
+      "status": "met",
+      "evidence": [
+        "two similar works each of value not less than Rs. 24.25 lakh"
+      ],
+      "query": "similar work experience"
+    },
+    {
+      "description": "Valid Delhi electrical contractor licence",
+      "status": "met",
+      "evidence": [
+        "electrical contractor licence issued by the Government of"
+      ],
+      "query": "electrical contractor licence"
+    },
+    {
+      "description": "EMD Rs 97,000 (MSEs exempt)",
+      "status": "exempt",
+      "evidence": [
+        "exempted from",
+        "submission of earnest money deposit"
+      ],
+      "query": "EMD exemption for MSE"
+    }
+  ],
+  "notes": "Turnover 9 lakh < 14.55 lakh and the tender says no relaxation is admissible."
+}

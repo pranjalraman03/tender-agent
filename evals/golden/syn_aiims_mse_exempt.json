@@ -1,0 +1,78 @@
+{
+  "name": "syn_aiims_mse_exempt",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/aiims_ophthalmoscope.pdf"
+  ],
+  "tender": {
+    "title": "Supply of 18 coaxial indirect ophthalmoscopes",
+    "org_name": "AIIMS",
+    "industries": [
+      "medical_supplies"
+    ]
+  },
+  "profile": {
+    "company_name": "Netra Medisys (synthetic)",
+    "description": "Authorised distributor of ophthalmic equipment.",
+    "industries": [
+      "medical_supplies"
+    ],
+    "states": [
+      "Delhi"
+    ],
+    "msme_category": "micro",
+    "is_msme": true,
+    "years_in_business": 4,
+    "annual_turnover_inr": 4000000,
+    "certifications": [
+      "ISO 13485:2016",
+      "Authorised distributor certificate from manufacturer",
+      "Udyam registration"
+    ],
+    "past_projects": [
+      {
+        "title": "Supply of slit lamps",
+        "client": "Safdarjung Hospital",
+        "value_inr": 1800000,
+        "year": 2025
+      }
+    ]
+  },
+  "verdict": "eligible",
+  "criteria": [
+    {
+      "description": "Manufacturer or authorised distributor",
+      "status": "met",
+      "evidence": [
+        "manufacturer or its authorised distributor"
+      ],
+      "query": "manufacturer or authorised distributor"
+    },
+    {
+      "description": "Average annual turnover >= Rs 1.5 crore (MSEs exempt)",
+      "status": "exempt",
+      "evidence": [
+        "not be less than",
+        "Rs. 1.5 crore"
+      ],
+      "query": "average annual turnover"
+    },
+    {
+      "description": "Supplied similar equipment to 2 Govt hospitals in 5 years (MSEs exempt)",
+      "status": "exempt",
+      "evidence": [
+        "at least two Government hospitals"
+      ],
+      "query": "previous supply experience"
+    },
+    {
+      "description": "ISO 13485 certification",
+      "status": "met",
+      "evidence": [
+        "ISO 13485 certification"
+      ],
+      "query": "ISO certification"
+    }
+  ],
+  "notes": "Turnover 40 lakh and one hospital supply fail the raw criteria; clause 5 exempts MSEs."
+}

@@ -56,6 +56,8 @@ ignore = ["S101"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "E501"]
 "core/db/migrations/**" = ["E501"]
+# Interactive CLI: blocking file reads in async code are fine here.
+"evals/label_tool.py" = ["ASYNC240"]
 
 [tool.mypy]
 python_version = "3.12"
@@ -69,7 +71,7 @@ strict = true
 
 # PyMuPDF ships partial type hints; its Page/Document methods are untyped.
 [[tool.mypy.overrides]]
-module = ["core.parsing.pdf"]
+module = ["core.parsing.pdf", "evals.*"]
 disallow_untyped_calls = false
 
 [tool.pytest.ini_options]

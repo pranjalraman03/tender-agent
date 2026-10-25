@@ -23,6 +23,26 @@ def get_claude() -> Claude:  # replaced in tests
     return Claude()
 
 
+async def embed_missing_clauses(session: AsyncSession, tender_id: int) -> int:
+    """Embed this tender's clauses that have no embedding yet. Returns how many."""
+    todo = (
+        await session.execute(
+            text(
+                "SELECT id, section, text FROM clauses "
+                "WHERE tender_id = :id AND embedding IS NULL ORDER BY id"
+            ),
+            {"id": tender_id},
+        )
+    ).all()
+    vectors = await embed([f"{c.section or ''}\n{c.text}" for c in todo], "document")
+    for c, v in zip(todo, vectors, strict=True):
+        await session.execute(
+            text("UPDATE clauses SET embedding = CAST(:v AS vector) WHERE id = :id"),
+            {"v": to_pgvector(v), "id": c.id},
+        )
+    return len(todo)
+
+
 async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
     tender_id = int(payload["tender_id"])
     trigger_doc = payload.get("trigger_document_id")
@@ -44,8 +64,7 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
     clauses = (
         await session.execute(
             text("""
-                SELECT c.id, c.clause_no, c.section, c.page_start, c.text, c.document_id,
-                       c.embedding IS NULL AS needs_embedding
+                SELECT c.id, c.clause_no, c.section, c.page_start, c.text, c.document_id
                 FROM clauses c WHERE c.tender_id = :id ORDER BY c.document_id, c.id
             """),
             {"id": tender_id},
@@ -55,13 +74,7 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
         raise ValueError(f"tender {tender_id} has no clauses to index")
 
     # 1. Clause embeddings (only missing ones; re-runs are cheap).
-    todo = [c for c in clauses if c.needs_embedding]
-    vectors = await embed([f"{c.section or ''}\n{c.text}" for c in todo], "document")
-    for c, v in zip(todo, vectors, strict=True):
-        await session.execute(
-            text("UPDATE clauses SET embedding = CAST(:v AS vector) WHERE id = :id"),
-            {"v": to_pgvector(v), "id": c.id},
-        )
+    embedded = await embed_missing_clauses(session, tender_id)
 
     # 2. Fields + industries (fast model, JSON schema, labels limited to the industries table).
     allowed = list(
@@ -125,7 +138,7 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
         "indexed",
         tender_id=tender_id,
         clauses=len(clauses),
-        embedded=len(todo),
+        embedded=embedded,
         industries=fields.industries,
         corrigendum=was_indexed,
     )
