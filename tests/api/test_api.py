@@ -153,3 +153,24 @@ async def test_chat_without_key_is_503(
         json={"session_id": str(uuid.uuid4()), "question": "What is the EMD?"},
     )
     assert r.status_code == 503
+
+
+async def test_request_eligibility_check(
+    api: httpx.AsyncClient, sessionmaker: SM, portal_id: int
+) -> None:
+    ids = await _tenders(sessionmaker, portal_id)
+    h = token("checker@co.test")
+    assert (await api.post(f"/reports/{ids['live']}/check", headers=h)).status_code == 409
+    await api.patch(
+        "/profile", headers=h, json={"industries": ["electrical_works"], "states": ["Delhi"]}
+    )
+    await api.post("/profile/confirm", headers=h)
+    assert (await api.post(f"/reports/{ids['expired']}/check", headers=h)).status_code == 404
+    for _ in range(2):
+        r = await api.post(f"/reports/{ids['live']}/check", headers=h)
+        assert r.status_code == 202
+    async with sessionmaker() as s:
+        n = (await s.execute(text("SELECT count(*) FROM jobs WHERE kind = 'fit_check'"))).scalar()
+    assert n == 1  # idempotent per profile version
+    status = (await api.get(f"/reports/{ids['live']}/status", headers=h)).json()
+    assert status["status"] == "queued"

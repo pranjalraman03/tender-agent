@@ -11,9 +11,11 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from apps.api.deps import User, UserDB
+from apps.api.deps import User, UserDB, rate_limit
 from apps.api.routes.tenders import card
 from apps.api.schemas import ClauseOut, FindingOut, MatchOut, MatchUpdate, ReportOut
+from core import queue
+from core.config import get_settings
 from core.db.session import get_sessionmaker, set_org_context
 
 router = APIRouter(tags=["matches"])
@@ -136,6 +138,66 @@ async def stream_matches(user: User) -> StreamingResponse:
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/reports/{tender_id}/check", status_code=202)
+async def request_check(tender_id: int, user: User, db: UserDB) -> dict[str, Any]:
+    """Queue an eligibility check of this tender for the user's confirmed profile.
+    Cached per profile version, so asking twice costs nothing."""
+    await rate_limit(f"check:{user.org_id}", limit=30, window_s=86400)
+    live = (
+        await db.execute(text("SELECT 1 FROM live_tenders WHERE id = :t"), {"t": tender_id})
+    ).first()
+    if not live:
+        raise HTTPException(404, "tender not found or no longer open")
+    version = (
+        await db.execute(
+            text(
+                "SELECT max(version) FROM company_profiles WHERE org_id = :o "
+                "AND confirmed_at IS NOT NULL"
+            ),
+            {"o": user.org_id},
+        )
+    ).scalar_one()
+    if version is None:
+        raise HTTPException(409, "confirm your company profile first")
+    await db.execute(
+        text(
+            "INSERT INTO matches (org_id, tender_id, stage) VALUES (:o, :t, 'prefiltered') "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"o": user.org_id, "t": tender_id},
+    )
+    await queue.enqueue(
+        db,
+        "fit_check",
+        {"org_id": str(user.org_id), "tender_id": tender_id},
+        f"fit_check:{user.org_id}:{tender_id}:v{version}",
+    )
+    return {
+        "queued": True,
+        "profile_version": version,
+        "llm_configured": get_settings().llm_configured,
+    }
+
+
+@router.get("/reports/{tender_id}/status")
+async def check_status(tender_id: int, user: User, db: UserDB) -> dict[str, Any]:
+    job = (
+        await db.execute(
+            text(
+                "SELECT status, last_error FROM jobs WHERE kind = 'fit_check' "
+                "AND payload->>'org_id' = :o AND (payload->>'tender_id')::bigint = :t "
+                "ORDER BY id DESC LIMIT 1"
+            ),
+            {"o": str(user.org_id), "t": tender_id},
+        )
+    ).one_or_none()
+    return {
+        "status": job.status if job else None,
+        "last_error": job.last_error if job else None,
+        "llm_configured": get_settings().llm_configured,
+    }
 
 
 @router.get("/reports/{tender_id}")

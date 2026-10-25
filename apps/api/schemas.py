@@ -9,8 +9,13 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 
+class IndustryOut(BaseModel):
+    slug: str
+    name: str
+
+
 class Meta(BaseModel):
-    industries: list[dict[str, str]]
+    industries: list[IndustryOut]
     states: list[str]
     llm_configured: bool
 

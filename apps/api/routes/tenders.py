@@ -11,6 +11,7 @@ from apps.api.deps import PublicDB, User, UserDB, rate_limit
 from apps.api.schemas import (
     ClauseOut,
     DocumentOut,
+    IndustryOut,
     Meta,
     TenderCard,
     TenderDetail,
@@ -36,7 +37,7 @@ def card(row: Any) -> TenderCard:
 async def meta(db: PublicDB) -> Meta:
     rows = (await db.execute(text("SELECT slug, name FROM industries ORDER BY name"))).all()
     return Meta(
-        industries=[{"slug": r.slug, "name": r.name} for r in rows],
+        industries=[IndustryOut(slug=r.slug, name=r.name) for r in rows],
         states=STATES,
         llm_configured=get_settings().llm_configured,
     )

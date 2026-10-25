@@ -20,6 +20,9 @@ def include_object(obj, name, type_, reflected, compare_to):  # type: ignore[no-
     # Don't let autogenerate propose dropping them.
     if type_ == "index" and reflected and compare_to is None:
         return False
+    # The auth schema (Auth.js tables) is managed by migration SQL only.
+    if type_ == "table" and getattr(obj, "schema", None) == "auth":
+        return False
     return True
 
 
