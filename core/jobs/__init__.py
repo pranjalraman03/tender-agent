@@ -20,6 +20,7 @@ KINDS: dict[str, bool] = {
     "download": False,
     "parse": False,
     "index": True,
+    "fit_check": True,
 }
 
 
