@@ -7,7 +7,7 @@ import structlog
 
 from core.config import get_settings
 from core.db.session import get_sessionmaker
-from core.observability import configure_logging
+from core.observability import configure_logging, init_sentry
 from core.queue.worker import run_once
 
 log = structlog.get_logger()
@@ -15,6 +15,7 @@ log = structlog.get_logger()
 
 async def main() -> None:
     configure_logging(json_logs=get_settings().app_env == "production")
+    init_sentry("worker")
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):

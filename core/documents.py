@@ -7,6 +7,7 @@ downloads behind a captcha. Both paths call `ingest_document`.
 
 import hashlib
 import io
+import uuid
 import zipfile
 from dataclasses import dataclass
 
@@ -74,6 +75,9 @@ async def ingest_document(
     tender_id: int,
     filename: str,
     data: bytes,
+    *,
+    source: str = "crawler",
+    uploaded_by: uuid.UUID | None = None,
 ) -> IngestResult:
     """Store new PDFs for a tender and enqueue `parse` for each, in the caller's transaction.
 
@@ -106,12 +110,20 @@ async def ingest_document(
         doc_id = (
             await session.execute(
                 text("""
-                    INSERT INTO tender_documents (tender_id, storage_key, sha256, filename)
-                    VALUES (:tender_id, :key, :sha, :name)
+                    INSERT INTO tender_documents (tender_id, storage_key, sha256, filename,
+                                                  source, uploaded_by)
+                    VALUES (:tender_id, :key, :sha, :name, :source, :by)
                     ON CONFLICT (tender_id, sha256) DO NOTHING
                     RETURNING id
                 """),
-                {"tender_id": tender_id, "key": key, "sha": sha, "name": name[:255]},
+                {
+                    "tender_id": tender_id,
+                    "key": key,
+                    "sha": sha,
+                    "name": name[:255],
+                    "source": source,
+                    "by": uploaded_by,
+                },
             )
         ).scalar_one_or_none()
         if doc_id is None:

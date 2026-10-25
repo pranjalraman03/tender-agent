@@ -13,6 +13,7 @@ use `auto` with `strict: true`; assistant prefill is not supported.
 import json
 import time
 import uuid
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Any, Literal, TypeVar
@@ -157,25 +158,21 @@ class Claude:
         self.client = client
         self.fallback = settings.llm_refusal_fallback
 
-    async def create(
+    def _request(
         self,
-        ctx: CallContext,
-        *,
         tier: Tier,
         system: str,
         messages: list[dict[str, Any]],
-        max_tokens: int = 16000,
-        effort: Effort = "medium",
-        tools: list[dict[str, Any]] | None = None,
-        output_schema: dict[str, Any] | None = None,
-    ) -> tuple[Any, Usage]:
-        """One Messages API call. Returns (message, usage). Raises LLMRefusal on refusal."""
-        model = model_for(tier)
+        max_tokens: int,
+        effort: Effort,
+        tools: list[dict[str, Any]] | None,
+        output_schema: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         output_config: dict[str, Any] = {"effort": effort}
         if output_schema is not None:
             output_config["format"] = {"type": "json_schema", "schema": output_schema}
         kwargs: dict[str, Any] = {
-            "model": model,
+            "model": model_for(tier),
             "max_tokens": max_tokens,
             # Stable system prompt first, cached; volatile content goes in messages.
             "system": [{"type": "text", "text": system, "cache_control": {"type": "ephemeral"}}],
@@ -187,12 +184,13 @@ class Claude:
         if self.fallback:
             kwargs["betas"] = [FALLBACK_BETA]
             kwargs["fallbacks"] = "default"
+        return kwargs
 
-        started = time.monotonic()
-        response = await self.client.beta.messages.create(**kwargs)
+    async def _finish(
+        self, ctx: CallContext, requested_model: str, response: Any, started: float
+    ) -> Usage:
         latency_ms = int((time.monotonic() - started) * 1000)
-
-        served_by = getattr(response, "model", None) or model
+        served_by = getattr(response, "model", None) or requested_model
         usage = Usage(
             input_tokens=response.usage.input_tokens,
             output_tokens=response.usage.output_tokens,
@@ -206,7 +204,48 @@ class Claude:
         if response.stop_reason == "refusal":
             details = getattr(response, "stop_details", None)
             raise LLMRefusal(f"{ctx.purpose}: refused ({getattr(details, 'category', None)})")
-        return response, usage
+        return usage
+
+    async def create(
+        self,
+        ctx: CallContext,
+        *,
+        tier: Tier,
+        system: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int = 16000,
+        effort: Effort = "medium",
+        tools: list[dict[str, Any]] | None = None,
+        output_schema: dict[str, Any] | None = None,
+    ) -> tuple[Any, Usage]:
+        """One Messages API call. Returns (message, usage). Raises LLMRefusal on refusal."""
+        kwargs = self._request(tier, system, messages, max_tokens, effort, tools, output_schema)
+        started = time.monotonic()
+        response = await self.client.beta.messages.create(**kwargs)
+        return response, await self._finish(ctx, kwargs["model"], response, started)
+
+    async def stream(
+        self,
+        ctx: CallContext,
+        *,
+        tier: Tier,
+        system: str,
+        messages: list[dict[str, Any]],
+        max_tokens: int = 16000,
+        effort: Effort = "low",
+        tools: list[dict[str, Any]] | None = None,
+    ) -> AsyncIterator[tuple[str, Any]]:
+        """Streaming call. Yields ("text", delta) as text arrives, then ("final", message)
+        and ("usage", Usage) once the response is complete."""
+        kwargs = self._request(tier, system, messages, max_tokens, effort, tools, None)
+        started = time.monotonic()
+        async with self.client.beta.messages.stream(**kwargs) as stream:
+            async for delta in stream.text_stream:
+                yield "text", delta
+            final = await stream.get_final_message()
+        usage = await self._finish(ctx, kwargs["model"], final, started)
+        yield "final", final
+        yield "usage", usage
 
     async def json(
         self,

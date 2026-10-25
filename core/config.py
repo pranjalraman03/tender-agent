@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     agent_timeout_s: int = 300
 
     auth_secret: SecretStr = SecretStr("")
+    admin_emails: list[str] = []  # JSON list in env, e.g. ADMIN_EMAILS=["you@example.com"]
+    cors_origins: list[str] = ["http://localhost:3000"]
 
     resend_api_key: SecretStr = SecretStr("")
     email_from: str = "Tender Agent <digest@example.com>"

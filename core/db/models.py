@@ -107,6 +107,10 @@ class TenderDocument(Base):
     tender_id: Mapped[int] = mapped_column(ForeignKey("tenders.id", ondelete="CASCADE"))
     storage_key: Mapped[str] = mapped_column(Text)
     filename: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(Text, server_default="crawler")
+    uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     sha256: Mapped[str] = mapped_column(Text)
     page_count: Mapped[int | None] = mapped_column(Integer)
     is_scanned: Mapped[bool] = mapped_column(Boolean, server_default="false")
@@ -165,6 +169,7 @@ class User(Base):
     )
     org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orgs.id", ondelete="CASCADE"))
     email: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str | None] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text, server_default="member")
     created_at: Mapped[datetime] = _now()
 
@@ -257,6 +262,14 @@ class Job(Base):
     last_error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = _now()
+
+
+class RateLimit(Base):
+    __tablename__ = "rate_limits"
+
+    bucket: Mapped[str] = mapped_column(Text, primary_key=True)
+    window_start: Mapped[datetime] = mapped_column(primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, server_default="0")
 
 
 class LlmCall(Base):

@@ -13,7 +13,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core import queue
 from core.config import get_settings
 from core.db.session import system_transaction
-from core.observability import configure_logging
+from core.observability import configure_logging, init_sentry
 
 log = structlog.get_logger()
 IST = ZoneInfo("Asia/Kolkata")
@@ -37,6 +37,7 @@ async def enqueue(kind: str, payload: dict[str, str], bucket_format: str) -> Non
 
 async def main() -> None:
     configure_logging(json_logs=get_settings().app_env == "production")
+    init_sentry("scheduler")
     scheduler = AsyncIOScheduler(timezone=IST)
     now = datetime.now(IST)
     scheduler.add_job(requeue_stuck_jobs, "interval", minutes=1, id="requeue_stuck")
