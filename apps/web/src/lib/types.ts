@@ -1,0 +1,20 @@
+import type { components } from "@/lib/api-types";
+
+type S = components["schemas"];
+export type Meta = S["Meta"];
+export type TenderCard = S["TenderCard"];
+export type TenderPage = S["TenderPage"];
+export type TenderDetail = S["TenderDetail"];
+export type ClauseOut = S["ClauseOut"];
+export type ChatMessage = S["ChatMessageOut"];
+export type Me = S["Me"];
+export type Profile = S["ProfileOut"];
+export type ProfileState = S["ProfileState"];
+export type ProfileUpdate = S["ProfileUpdate"];
+export type UdyamOut = S["UdyamOut"];
+export type Match = S["MatchOut"];
+export type Report = S["ReportOut"];
+export type Finding = S["FindingOut"];
+export type UploadResult = S["UploadResult"];
+export type NeededDoc = S["NeededDocsItem"];
+export type AdminOverview = S["AdminOverview"];
