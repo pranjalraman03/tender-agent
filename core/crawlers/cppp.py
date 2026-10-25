@@ -15,7 +15,13 @@ from zoneinfo import ZoneInfo
 import httpx
 from selectolax.lexbor import LexborHTMLParser
 
-from core.crawlers.base import CrawlError, ListingItem, RateLimiter, TenderDetail
+from core.crawlers.base import (
+    CorrigendumNotice,
+    CrawlError,
+    ListingItem,
+    RateLimiter,
+    TenderDetail,
+)
 
 IST = ZoneInfo("Asia/Kolkata")
 BASE_URL = "https://eprocure.gov.in"
@@ -63,6 +69,24 @@ def parse_listing(html: str) -> list[ListingItem]:
             )
         )
     return items
+
+
+def parse_corrigenda(html: str) -> list[CorrigendumNotice]:
+    """The homepage 'Latest Corrigendum' table: title, reference no, new closing date."""
+    tree = LexborHTMLParser(html)
+    out: list[CorrigendumNotice] = []
+    for row in tree.css("table#activeCorrigendums tr"):
+        cells = row.css("td")
+        if len(cells) < 3:
+            continue
+        out.append(
+            CorrigendumNotice(
+                title=re.sub(r"^\d+\.\s*", "", cells[0].text(strip=True)),
+                reference_no=cells[1].text(strip=True),
+                closes_at=parse_ist(cells[2].text(strip=True)),
+            )
+        )
+    return out
 
 
 def parse_detail(html: str) -> TenderDetail:
@@ -113,3 +137,6 @@ class CpppCrawler:
 
     async def fetch_detail(self, item: ListingItem) -> TenderDetail:
         return parse_detail(await self._get(item.detail_url))
+
+    async def list_corrigenda(self) -> list[CorrigendumNotice]:
+        return parse_corrigenda(await self._get(BASE_URL + HOME_PATH))

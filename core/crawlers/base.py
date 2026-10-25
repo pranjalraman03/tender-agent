@@ -31,10 +31,21 @@ class TenderDetail:
     raw: dict[str, str] = field(default_factory=dict)  # all caption -> value pairs
 
 
+@dataclass(frozen=True)
+class CorrigendumNotice:
+    """A portal's notice that an existing tender was amended."""
+
+    title: str
+    reference_no: str
+    closes_at: datetime | None
+
+
 class Crawler(Protocol):
     async def list_new(self) -> list[ListingItem]: ...
 
     async def fetch_detail(self, item: ListingItem) -> TenderDetail: ...
+
+    async def list_corrigenda(self) -> list[CorrigendumNotice]: ...
 
 
 class CrawlError(Exception):

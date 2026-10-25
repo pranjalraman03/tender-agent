@@ -24,6 +24,10 @@ KINDS: dict[str, bool] = {
     "extract_profile": True,
     "match_profile": False,
     "match_tender": False,
+    "recheck": False,
+    "expiry_sweep": False,
+    "digest": False,
+    "digest_org": False,
 }
 
 
