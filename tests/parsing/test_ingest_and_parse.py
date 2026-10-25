@@ -85,3 +85,23 @@ async def test_ingest_then_parse(
     assert "1.2(b)" in nos and nos.count("1.1") == 1
     assert tender == "parsed" and kinds == ["parse", "index"]
     assert doc.page_count == 3 and doc.parsed_at is not None
+
+
+async def test_same_pdf_on_two_tenders_is_stored_for_both(
+    sessionmaker: SM, tender_id: int, portal_id: int, tmp_path: Path
+) -> None:
+    storage = LocalStorage(str(tmp_path))
+    pdf = text_pdf(["General Conditions of Contract"])
+    async with sessionmaker() as s, s.begin():
+        other = (
+            await s.execute(
+                text(
+                    "INSERT INTO tenders (portal_id, tender_ref, title) VALUES (:p, 'T2', 'x') "
+                    "RETURNING id"
+                ),
+                {"p": portal_id},
+            )
+        ).scalar_one()
+        a = await ingest_document(s, storage, tender_id, "gcc.pdf", pdf)
+        b = await ingest_document(s, storage, other, "gcc.pdf", pdf)
+    assert len(a.new_document_ids) == 1 and len(b.new_document_ids) == 1

@@ -99,12 +99,15 @@ class Tender(Base):
 
 class TenderDocument(Base):
     __tablename__ = "tender_documents"
+    __table_args__ = (
+        UniqueConstraint("tender_id", "sha256", name="tender_documents_tender_sha_key"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     tender_id: Mapped[int] = mapped_column(ForeignKey("tenders.id", ondelete="CASCADE"))
     storage_key: Mapped[str] = mapped_column(Text)
     filename: Mapped[str | None] = mapped_column(Text)
-    sha256: Mapped[str] = mapped_column(Text, unique=True)
+    sha256: Mapped[str] = mapped_column(Text)
     page_count: Mapped[int | None] = mapped_column(Integer)
     is_scanned: Mapped[bool] = mapped_column(Boolean, server_default="false")
     parsed_at: Mapped[datetime | None]

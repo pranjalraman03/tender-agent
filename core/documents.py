@@ -77,9 +77,10 @@ async def ingest_document(
 ) -> IngestResult:
     """Store new PDFs for a tender and enqueue `parse` for each, in the caller's transaction.
 
-    Uploading the same file twice is a no-op (sha256 is unique). If the tender was already
-    indexed, a new document is treated as a corrigendum: it is parsed and re-indexed while
-    the tender stays visible.
+    Uploading the same file to the same tender twice is a no-op ((tender_id, sha256) is
+    unique); the same file on another tender is stored for that tender too. If the tender
+    was already indexed, a new document is treated as a corrigendum: it is parsed and
+    re-indexed while the tender stays visible.
     """
     pdfs, skipped = extract_pdfs(filename, data)
     if not pdfs:
@@ -92,7 +93,8 @@ async def ingest_document(
         key = f"tenders/{tender_id}/{sha}.pdf"
         exists = (
             await session.execute(
-                text("SELECT 1 FROM tender_documents WHERE sha256 = :sha"), {"sha": sha}
+                text("SELECT 1 FROM tender_documents WHERE tender_id = :t AND sha256 = :sha"),
+                {"t": tender_id, "sha": sha},
             )
         ).first()
         if exists:
@@ -106,7 +108,7 @@ async def ingest_document(
                 text("""
                     INSERT INTO tender_documents (tender_id, storage_key, sha256, filename)
                     VALUES (:tender_id, :key, :sha, :name)
-                    ON CONFLICT (sha256) DO NOTHING
+                    ON CONFLICT (tender_id, sha256) DO NOTHING
                     RETURNING id
                 """),
                 {"tender_id": tender_id, "key": key, "sha": sha, "name": name[:255]},
