@@ -65,7 +65,7 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
     return (
       <EmptyState title="Confirm your company profile first"
                   body="The eligibility check compares this tender's criteria with your confirmed profile.">
-        <Button render={<Link href="/onboarding" />}>Set up profile</Button>
+        <Button nativeButton={false} render={<Link href="/onboarding" />}>Set up profile</Button>
       </EmptyState>
     );
   }
@@ -79,7 +79,7 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
         <Alert>
           <AlertTriangleIcon />
           <AlertTitle>Eligibility checks are paused</AlertTitle>
-          <AlertDescription>The Claude API key isn’t configured yet. Checks wait in the queue and run once it is.</AlertDescription>
+          <AlertDescription>No LLM API key is configured yet. Checks wait in the queue and run once it is.</AlertDescription>
         </Alert>
       )}
       {!data ? (

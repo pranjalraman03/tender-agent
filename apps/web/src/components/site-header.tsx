@@ -27,10 +27,10 @@ export async function SiteHeader() {
           <span>Tender Agent</span>
         </Link>
         <nav className="flex items-center gap-1 text-sm">
-          <Button variant="ghost" size="sm" render={<Link href="/" />}>Tenders</Button>
-          {me && <Button variant="ghost" size="sm" render={<Link href="/matches" />}>My matches</Button>}
-          {me && <Button variant="ghost" size="sm" render={<Link href="/profile" />}>Company profile</Button>}
-          {me?.role === "admin" && <Button variant="ghost" size="sm" render={<Link href="/admin" />}>Admin</Button>}
+          <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}>Tenders</Button>
+          {me && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/matches" />}>My matches</Button>}
+          {me && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/profile" />}>Company profile</Button>}
+          {me?.role === "admin" && <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/admin" />}>Admin</Button>}
         </nav>
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
@@ -45,7 +45,7 @@ export async function SiteHeader() {
               <Button variant="outline" size="sm" type="submit">Sign out</Button>
             </form>
           ) : (
-            <Button size="sm" render={<Link href="/login" />}>Sign in</Button>
+            <Button size="sm" nativeButton={false} render={<Link href="/login" />}>Sign in</Button>
           )}
         </div>
       </div>

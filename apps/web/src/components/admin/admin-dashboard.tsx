@@ -34,8 +34,8 @@ export function AdminDashboard() {
     <div className="space-y-6">
       {o && !o.llm_configured && (
         <Alert>
-          <AlertTitle>Claude API key not configured</AlertTitle>
-          <AlertDescription>Indexing, eligibility checks, website extraction and chat jobs wait in the queue until ANTHROPIC_API_KEY is set (then restart the worker).</AlertDescription>
+          <AlertTitle>LLM API key not configured</AlertTitle>
+          <AlertDescription>Indexing, eligibility checks, website extraction and chat jobs wait in the queue until an LLM key is set — ANTHROPIC_API_KEY, or LLM_PROVIDER=openai_compat with OPENAI_COMPAT_API_KEY (e.g. a free Groq key) — then restart the worker.</AlertDescription>
         </Alert>
       )}
       <div className="flex gap-2">
@@ -72,7 +72,7 @@ export function AdminDashboard() {
                     <TableCell className="text-sm">{closesIn(n.closes_at)}</TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-1">
-                        <Button variant="ghost" size="sm" render={<a href={n.portal_url} target="_blank" rel="noreferrer" />}>
+                        <Button variant="ghost" size="sm" nativeButton={false} render={<a href={n.portal_url} target="_blank" rel="noreferrer" />}>
                           <ExternalLinkIcon />Portal
                         </Button>
                         <UploadButton path={`/admin/tenders/${n.tender_id}/documents`} label="Upload"

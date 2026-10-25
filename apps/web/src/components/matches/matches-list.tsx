@@ -56,7 +56,7 @@ export function MatchesList({ meta, hasProfile }: { meta: Meta; hasProfile: bool
       <div className="rounded-xl border border-dashed p-10 text-center">
         <h2 className="font-medium">Confirm your company profile to see matches</h2>
         <p className="mt-1 text-sm text-muted-foreground">We use it to shortlist live tenders and check eligibility.</p>
-        <Button className="mt-4" render={<Link href="/onboarding" />}>Set up profile</Button>
+        <Button className="mt-4" nativeButton={false} render={<Link href="/onboarding" />}>Set up profile</Button>
       </div>
     );
   }
@@ -78,7 +78,7 @@ export function MatchesList({ meta, hasProfile }: { meta: Meta; hasProfile: bool
           <Loader2Icon className="size-4 animate-spin" />
           {meta.llm_configured
             ? `Checking eligibility for ${checking} shortlisted tender${checking === 1 ? "" : "s"}…`
-            : `${checking} shortlisted by similarity; eligibility checks start once the Claude API key is set.`}
+            : `${checking} shortlisted by similarity; eligibility checks start once an LLM API key is set.`}
         </p>
       )}
       {matches.isLoading ? (

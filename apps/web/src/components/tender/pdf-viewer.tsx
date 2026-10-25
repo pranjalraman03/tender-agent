@@ -49,7 +49,7 @@ export default function PdfViewer({ url, page, onPageChange }: {
           <Button variant="ghost" size="icon-sm" onClick={() => setScale((s) => Math.min(2.5, s + 0.15))} aria-label="Zoom in">
             <ZoomInIcon />
           </Button>
-          <Button variant="link" size="sm" render={<a href={url} target="_blank" rel="noreferrer" />}>Open PDF</Button>
+          <Button variant="link" size="sm" nativeButton={false} render={<a href={url} target="_blank" rel="noreferrer" />}>Open PDF</Button>
         </div>
       </div>
       <div ref={box} className="flex-1 overflow-auto bg-muted/40 p-2">

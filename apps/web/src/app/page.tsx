@@ -43,7 +43,7 @@ export default async function Home({ searchParams }: PageProps<"/">) {
         </p>
         {!session && (
           <div className="mt-4 flex gap-2">
-            <Button render={<Link href="/login?next=/onboarding" />}><SparklesIcon />Match my company</Button>
+            <Button nativeButton={false} render={<Link href="/login?next=/onboarding" />}><SparklesIcon />Match my company</Button>
           </div>
         )}
       </section>
@@ -70,11 +70,11 @@ export default async function Home({ searchParams }: PageProps<"/">) {
 
       {pages > 1 && (
         <div className="flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page <= 1} render={<Link href={pageHref(page - 1)} />}>
+          <Button variant="outline" size="sm" disabled={page <= 1} nativeButton={false} render={<Link href={pageHref(page - 1)} />}>
             Previous
           </Button>
           <span className="text-sm text-muted-foreground">Page {page} of {pages}</span>
-          <Button variant="outline" size="sm" disabled={page >= pages} render={<Link href={pageHref(page + 1)} />}>
+          <Button variant="outline" size="sm" disabled={page >= pages} nativeButton={false} render={<Link href={pageHref(page + 1)} />}>
             Next
           </Button>
         </div>

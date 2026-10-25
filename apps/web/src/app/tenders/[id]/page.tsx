@@ -49,7 +49,7 @@ export default async function TenderPage({ params }: PageProps<"/tenders/[id]">)
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-4 py-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
       <section className="space-y-5">
-        <Button variant="ghost" size="sm" render={<Link href="/" />}><ArrowLeftIcon />All tenders</Button>
+        <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/" />}><ArrowLeftIcon />All tenders</Button>
         <div className="space-y-2">
           <div className="flex flex-wrap gap-1.5">
             {tender.industries.map((i) => <Badge key={i} variant="secondary">{industryName(i, meta.industries)}</Badge>)}
@@ -82,7 +82,7 @@ export default async function TenderPage({ params }: PageProps<"/tenders/[id]">)
         )}
         <div className="flex flex-wrap items-center gap-2">
           {tender.source_url && (
-            <Button variant="outline" size="sm" render={<a href={tender.source_url} target="_blank" rel="noreferrer" />}>
+            <Button variant="outline" size="sm" nativeButton={false} render={<a href={tender.source_url} target="_blank" rel="noreferrer" />}>
               <ExternalLinkIcon />Portal ({tender.portal.toUpperCase()})
             </Button>
           )}

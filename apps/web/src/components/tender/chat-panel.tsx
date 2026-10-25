@@ -113,7 +113,7 @@ export function ChatPanel({ tenderId, llmConfigured }: { tenderId: number; llmCo
   }
 
   if (!llmConfigured) {
-    return <p className="p-6 text-sm text-muted-foreground">Chat needs the Claude API key, which isn’t configured yet.</p>;
+    return <p className="p-6 text-sm text-muted-foreground">Chat needs an LLM API key, which isn’t configured yet.</p>;
   }
   return (
     <div className="flex h-full flex-col">
