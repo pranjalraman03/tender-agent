@@ -21,7 +21,11 @@ Status rules:
 - "unclear": the profile lacks the information, or the tender is ambiguous.
 
 Every finding must cite the clause ids that state the requirement (and the exemption clause,
-for "exempt"). Notes must name the numbers compared. Be concise.
+for "exempt") in `clause_ids`. Notes must name the numbers compared. Be concise.
+
+In `note`, refer to clauses the way the tender does - by clause number and page (e.g.
+"clause 3(b), p.1") - never by clause_id. Clause ids are internal and mean nothing to the user;
+they belong only in `clause_ids`.
 
 When done, reply with the JSON object only: one finding per criterion, using the criterion ids
 you were given.
