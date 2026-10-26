@@ -6,16 +6,20 @@ No tool writes data, sends anything, or fetches URLs (CLAUDE.md rule 7).
 """
 
 import uuid
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.agent.numeric import AmountParseError, compare
+from core.agent.turnover import TurnoverRule, TurnoverRuleError, evaluate, figures_from_profile
 from core.profiles.store import profile_for_agent
 from core.search.hybrid import search_clauses
 
 MAX_CLAUSE_CHARS = 2500
+IST = ZoneInfo("Asia/Kolkata")
 
 EXEMPTION_QUERIES = [
     "exemption for micro and small enterprises MSE Udyam NSIC",
@@ -82,6 +86,39 @@ TOOL_DEFS: list[dict[str, Any]] = [
                 "requirement": {"type": "string"},
                 "actual": {"type": "string"},
                 "rule": {"type": "string", "enum": [">=", ">", "<=", "<", "=="]},
+            }
+        ),
+    },
+    {
+        "name": "check_turnover",
+        "description": "Decide a turnover criterion in code from the company's per-financial-"
+        "year turnover (Indian FY, April-March). Give the rule as the tender "
+        "states it; this tool picks the financial years, checks them against "
+        "the incorporation date, finds missing years and does the arithmetic. "
+        "Use it for every turnover criterion instead of compare_numeric.",
+        "strict": True,
+        "input_schema": _schema(
+            {
+                "aggregation": {
+                    "type": "string",
+                    "enum": ["average", "each_year", "any_one_year", "total", "best_k_of_n"],
+                    "description": "average: mean over the period; each_year: every "
+                    "year must reach the amount; any_one_year: at "
+                    "least one year; total: sum over the period; "
+                    "best_k_of_n: mean of the best k years",
+                },
+                "years": {"type": "integer", "description": "Number of financial years (n)"},
+                "best_k": {"type": ["integer", "null"], "description": "k for best_k_of_n"},
+                "amount": {
+                    "type": "string",
+                    "description": "Required amount as written, e.g. 'Rs. 14.55 lakh'",
+                },
+                "period_end": {
+                    "type": ["string", "null"],
+                    "description": "End of the period if the tender states it, as a "
+                    "date ('2026-03-31') or FY ('2025-26'); null means "
+                    "the last FY completed before the bid deadline",
+                },
             }
         ),
     },
@@ -183,6 +220,29 @@ class AgentTools:
             try:
                 return compare(str(args["requirement"]), str(args["actual"]), args["rule"])
             except AmountParseError as exc:
+                raise ToolError(str(exc)) from exc
+        if name == "check_turnover":
+            closes = (
+                await self.session.execute(
+                    text("SELECT closes_at FROM tenders WHERE id = :t"), {"t": self.tender_id}
+                )
+            ).scalar_one_or_none()
+            as_of = (closes or datetime.now(IST)).astimezone(IST).date()
+            rule = TurnoverRule(
+                aggregation=args["aggregation"],
+                years=int(args["years"]),
+                amount=str(args["amount"]),
+                best_k=args.get("best_k"),
+                period_end=args.get("period_end"),
+            )
+            try:
+                return evaluate(
+                    rule,
+                    figures_from_profile(self.profile.get("turnover_by_year")),
+                    self.profile.get("incorporated_on"),
+                    as_of,
+                )
+            except (TurnoverRuleError, AmountParseError) as exc:
                 raise ToolError(str(exc)) from exc
         if name == "check_exemptions":
             self._check_tender(int(args["tender_id"]))

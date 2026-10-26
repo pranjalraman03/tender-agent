@@ -13,12 +13,14 @@ import asyncio
 import json
 import time
 import uuid
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import structlog
 from pydantic import BaseModel, ValidationError
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.agent.schemas import CheckResult, Finding, Plan, Report, Verdict, Verification
@@ -38,12 +40,12 @@ from core.llm.claude import (
     wrap_untrusted,
 )
 from core.profiles.store import profile_for_agent
-from core.search.hybrid import search_clauses
+from core.search.hybrid import ClauseHit, search_clauses
 
 log = structlog.get_logger()
 
 PROMPT_DIR = Path(__file__).parent / "prompts"
-PROMPT_VERSIONS = {"plan": "plan_v1", "check": "check_v1", "verify": "verify_v1"}
+PROMPT_VERSIONS = {"plan": "plan_v1", "check": "check_v2", "verify": "verify_v1"}
 PROMPTS = {step: (PROMPT_DIR / f"{v}.md").read_text() for step, v in PROMPT_VERSIONS.items()}
 
 PLAN_QUERIES = [
@@ -55,7 +57,8 @@ PLAN_QUERIES = [
     "bid security earnest money deposit",
     "exemption for MSE startups",
 ]
-MAX_PLAN_CLAUSES = 25
+MAX_PLAN_CLAUSES = 40
+SECTIONS_TO_EXPAND = 2
 
 
 class BudgetExceeded(Exception):
@@ -152,9 +155,33 @@ async def _plan(
     for q in PLAN_QUERIES:
         for h in await search_clauses(session, tender_id, q, k=5):
             candidates.setdefault(h.clause_id, h)
-    hits = list(candidates.values())[:MAX_PLAN_CLAUSES]
-    if not hits:
+    if not candidates:
         return Plan(criteria=[]), set()
+    # Section expansion: take every clause of the sections the search hits came from (the
+    # eligibility / qualification section, whatever it's called), so criteria worded unlike
+    # the search phrases are still seen. Section clauses first, in document order.
+    sections = Counter(h.section for h in candidates.values() if h.section)
+    top_sections = [name for name, _ in sections.most_common(SECTIONS_TO_EXPAND)]
+    expanded: dict[int, Any] = {}
+    if top_sections:
+        rows = (
+            await session.execute(
+                text(
+                    "SELECT id, clause_no, section, page_start, page_end, document_id, text "
+                    "FROM clauses WHERE tender_id = :t AND section = ANY(:s) "
+                    "ORDER BY document_id, id LIMIT :n"
+                ),
+                {"t": tender_id, "s": top_sections, "n": MAX_PLAN_CLAUSES},
+            )
+        ).all()
+        for r in rows:
+            expanded[r.id] = ClauseHit(
+                r.id, r.clause_no, r.section, r.page_start, r.page_end, r.document_id, r.text, 0.0
+            )
+    for cid, h in candidates.items():
+        expanded.setdefault(cid, h)
+    candidates = expanded
+    hits = list(candidates.values())[:MAX_PLAN_CLAUSES]
     clause_block = "\n\n".join(
         f"[clause_id={h.clause_id}] clause {h.clause_no or '-'} | section: {h.section or '-'} "
         f"| pages {h.page_start}-{h.page_end}\n{h.text}"
@@ -290,6 +317,7 @@ def _partial(plan: Plan | None, reason: str) -> list[Finding]:
         Finding(
             criterion_id=c.id,
             criterion=c.description,
+            category=c.category,
             status="unclear",
             clause_ids=c.clause_ids,
             note=f"Not assessed: {reason}",
@@ -433,11 +461,14 @@ def _reconcile(plan: Plan, findings: list[Finding]) -> list[Finding]:
                 Finding(
                     criterion_id=c.id,
                     criterion=c.description,
+                    category=c.category,
                     status="unclear",
                     clause_ids=c.clause_ids,
                     note="Not assessed by the checker.",
                 )
             )
         else:
-            out.append(f.model_copy(update={"clause_ids": f.clause_ids or c.clause_ids}))
+            # Category comes from the plan so the UI can act on it (e.g. missing turnover).
+            update = {"clause_ids": f.clause_ids or c.clause_ids, "category": c.category}
+            out.append(f.model_copy(update=update))
     return out

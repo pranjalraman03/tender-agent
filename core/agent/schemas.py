@@ -34,6 +34,7 @@ class Plan(BaseModel):
 class Finding(BaseModel):
     criterion_id: str
     criterion: str
+    category: Category = "other"
     status: Status
     clause_ids: list[int]
     note: str = Field(description="Why, in one or two sentences, citing the numbers compared")

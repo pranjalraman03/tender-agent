@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { MultiSelect } from "@/components/multi-select";
+import { FinancialDocuments } from "@/components/profile/financial-documents";
 import { TagInput } from "@/components/profile/tag-input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +22,10 @@ import { formatDateTime, formatInr } from "@/lib/format";
 import type { Me, Meta, Profile, ProfileState, ProfileUpdate, UdyamOut } from "@/lib/types";
 
 type Project = { title: string; client?: string | null; value_inr?: number | null; year?: number | null };
+type YearRow = { financial_year: string; turnover_inr: string; source?: Record<string, unknown> | null };
 type Form = {
   company_name: string; description: string; industries: string[]; states: string[]; nic_codes: string[];
-  msme_category: "" | "micro" | "small" | "medium"; is_msme: boolean; annual_turnover_inr: string;
+  msme_category: "" | "micro" | "small" | "medium"; is_msme: boolean; turnover: YearRow[]; incorporated_on: string;
   years_in_business: string; certifications: string[]; past_projects: Project[];
 };
 
@@ -32,17 +34,29 @@ function toForm(p: Profile, companyName: string): Form {
     company_name: companyName === "My company" ? "" : companyName,
     description: p.description ?? "", industries: p.industries, states: p.states, nic_codes: p.nic_codes,
     msme_category: (p.msme_category ?? "") as Form["msme_category"], is_msme: !!p.is_msme,
-    annual_turnover_inr: p.annual_turnover_inr ? String(Number(p.annual_turnover_inr)) : "",
+    turnover: p.turnover_by_year.map((r) => ({ financial_year: r.financial_year, turnover_inr: String(r.turnover_inr), source: r.source })),
+    incorporated_on: p.incorporated_on ?? "",
     years_in_business: p.years_in_business?.toString() ?? "", certifications: p.certifications,
     past_projects: (p.past_projects as Project[]) ?? [],
   };
+}
+
+/** Suggest the financial year before the oldest one entered (or the last completed FY). */
+function nextYearLabel(rows: YearRow[]): string {
+  const starts = rows.map((r) => Number(r.financial_year.slice(0, 4))).filter((n) => n > 1900);
+  const now = new Date();
+  const lastCompleted = (now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1) - 1;
+  const start = starts.length ? Math.min(...starts) - 1 : lastCompleted;
+  return `${start}-${String((start + 1) % 100).padStart(2, "0")}`;
 }
 
 function toUpdate(f: Form): ProfileUpdate {
   return {
     company_name: f.company_name || null, description: f.description || null, industries: f.industries,
     states: f.states, nic_codes: f.nic_codes, msme_category: f.msme_category || null, is_msme: f.is_msme,
-    annual_turnover_inr: f.annual_turnover_inr ? Number(f.annual_turnover_inr) : null,
+    incorporated_on: f.incorporated_on || null,
+    turnover_by_year: f.turnover.filter((r) => r.financial_year.trim() && r.turnover_inr !== "")
+      .map((r) => ({ financial_year: r.financial_year.trim(), turnover_inr: Number(r.turnover_inr) })),
     years_in_business: f.years_in_business ? Number(f.years_in_business) : null,
     certifications: f.certifications,
     past_projects: f.past_projects.filter((p) => p.title.trim()).map((p) => ({
@@ -159,7 +173,7 @@ export function ProfileEditor({ meta, me, onboarding = false }: { meta: Meta; me
           We draft your profile from your website and Udyam certificate. You review every field before it’s used.
         </CardDescription>
       </CardHeader>
-      <CardContent className="grid gap-4 sm:grid-cols-2">
+      <CardContent className="grid gap-4 sm:grid-cols-3">
         <form className="space-y-2" onSubmit={(e) => { e.preventDefault(); website.mutate(); }}>
           <Label htmlFor="site">Company website</Label>
           <div className="flex gap-2">
@@ -175,8 +189,9 @@ export function ProfileEditor({ meta, me, onboarding = false }: { meta: Meta; me
             {udyam.isPending ? <Loader2Icon className="animate-spin" /> : <UploadIcon />}Upload certificate
           </Button>
         </div>
+        <FinancialDocuments documents={state.data?.documents ?? []} pending={!!draft?.extraction_pending} compact />
         {!draft && (
-          <Button variant="link" className="justify-start px-0 sm:col-span-2" onClick={() => startEditing.mutate()}>
+          <Button variant="link" className="justify-start px-0 sm:col-span-3" onClick={() => startEditing.mutate()}>
             Or fill the form by hand
           </Button>
         )}
@@ -196,12 +211,44 @@ export function ProfileEditor({ meta, me, onboarding = false }: { meta: Meta; me
             <CardContent className="space-y-3 text-sm">
               <p>{confirmed.description}</p>
               <p><span className="text-muted-foreground">States:</span> {confirmed.states.join(", ")}</p>
-              <p><span className="text-muted-foreground">Turnover:</span> {formatInr(confirmed.annual_turnover_inr)} ·{" "}
+              <p><span className="text-muted-foreground">Turnover:</span>{" "}
+                {confirmed.turnover_by_year.length
+                  ? confirmed.turnover_by_year.map((r) => `${r.financial_year}: ${formatInr(r.turnover_inr)}`).join(" · ")
+                  : "no financial years on file"} ·{" "}
                 <span className="text-muted-foreground">MSME:</span> {confirmed.msme_category ?? (confirmed.is_msme ? "yes" : "—")}</p>
               <Button onClick={() => startEditing.mutate()} disabled={startEditing.isPending}>Edit profile</Button>
             </CardContent>
           </Card>
         ) : starters}
+        {confirmed && (
+          <Card id="financials" className="scroll-mt-24">
+            <CardHeader>
+              <CardTitle>Turnover by financial year</CardTitle>
+              <CardDescription>
+                Eligibility checks compute each tender’s turnover rule from these figures. Uploading a certificate
+                creates a draft with the new years for you to review and confirm.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <FinancialDocuments documents={state.data?.documents ?? []} pending={false} />
+              {confirmed.turnover_by_year.length > 0 ? (
+                <div className="divide-y rounded-lg border text-sm">
+                  {confirmed.turnover_by_year.map((r) => (
+                    <div key={r.financial_year} className="flex items-center justify-between px-3 py-2">
+                      <span className="font-medium tabular-nums">FY {r.financial_year}</span>
+                      <span className="tabular-nums">{formatInr(r.turnover_inr)}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {(r.source as { source?: string } | null)?.source === "ca_certificate" ? "CA certificate" : "Entered by you"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No financial years on file yet.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
@@ -239,9 +286,9 @@ export function ProfileEditor({ meta, me, onboarding = false }: { meta: Meta; me
               <MultiSelect label="States" value={form.states} onChange={(v) => set("states", v)}
                            options={meta.states.map((s) => ({ value: s, label: s }))} />
             </Field>
-            <Field label="Average annual turnover (₹)" sources={sources.annual_turnover_inr}
-                   hint={form.annual_turnover_inr ? `= ${formatInr(form.annual_turnover_inr)}` : "Last three financial years"}>
-              <Input type="number" min={0} value={form.annual_turnover_inr} onChange={(e) => set("annual_turnover_inr", e.target.value)} />
+            <Field label="Date of incorporation" sources={sources.incorporated_on}
+                   hint="From your Udyam certificate. Decides which financial years a tender can ask you for.">
+              <Input type="date" value={form.incorporated_on} onChange={(e) => set("incorporated_on", e.target.value)} />
             </Field>
             <Field label="MSME category" sources={sources.msme_category}>
               <div className="flex items-center gap-3">
@@ -261,6 +308,36 @@ export function ProfileEditor({ meta, me, onboarding = false }: { meta: Meta; me
             <Field label="NIC codes" sources={sources.nic_codes}>
               <TagInput value={form.nic_codes} onChange={(v) => set("nic_codes", v)} placeholder="e.g. 43211" />
             </Field>
+            <div id="financials" className="scroll-mt-24 space-y-3 rounded-xl border bg-background/60 p-4 sm:col-span-2">
+              <Label className="flex items-center text-base">Turnover by financial year</Label>
+              <FinancialDocuments documents={state.data?.documents ?? []} pending={draft.extraction_pending} />
+              {form.turnover.length > 0 && (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-[8rem_1fr_auto_auto] gap-2 px-1 text-xs font-medium text-muted-foreground">
+                    <span>Financial year</span><span>Turnover (₹)</span><span>Source</span><span />
+                  </div>
+                  {form.turnover.map((r, i) => (
+                    <div key={i} className="grid grid-cols-[8rem_1fr_auto_auto] items-center gap-2">
+                      <Input value={r.financial_year} placeholder="2024-25"
+                             onChange={(e) => set("turnover", form.turnover.map((x, j) => j === i ? { ...x, financial_year: e.target.value, source: null } : x))} />
+                      <div className="flex items-center gap-2">
+                        <Input type="number" min={0} value={r.turnover_inr}
+                               onChange={(e) => set("turnover", form.turnover.map((x, j) => j === i ? { ...x, turnover_inr: e.target.value, source: null } : x))} />
+                        <span className="w-24 shrink-0 text-xs tabular-nums text-muted-foreground">{r.turnover_inr ? formatInr(r.turnover_inr) : ""}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground" title={String((r.source as { quote?: string } | null)?.quote ?? "")}>
+                        {(r.source as { source?: string } | null)?.source === "ca_certificate" ? "CA certificate" : "Entered by you"}
+                      </span>
+                      <Button variant="ghost" size="icon-sm" aria-label="Remove year"
+                              onClick={() => set("turnover", form.turnover.filter((_, j) => j !== i))}><Trash2Icon /></Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Button variant="ghost" size="sm" onClick={() => set("turnover", [...form.turnover, { financial_year: nextYearLabel(form.turnover), turnover_inr: "" }])}>
+                <PlusIcon />Add a year manually
+              </Button>
+            </div>
             <div className="space-y-2 sm:col-span-2">
               <Label className="flex items-center">Completed projects<SourceTag sources={sources.past_projects} /></Label>
               <p className="text-xs text-muted-foreground"><InfoIcon className="mr-1 inline size-3" />Experience criteria compare against these values.</p>

@@ -1,0 +1,66 @@
+{
+  "name": "syn_turnover_3yr_avg_met",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/turnover_3yr_avg.pdf"
+  ],
+  "tender": {
+    "title": "Maintenance of electrical installations",
+    "org_name": "Municipal Corporation (synthetic)",
+    "industries": [
+      "electrical_works"
+    ]
+  },
+  "profile": {
+    "company_name": "Voltline Services (synthetic)",
+    "description": "Electrical maintenance contractor for municipal bodies.",
+    "industries": [
+      "electrical_works"
+    ],
+    "states": [
+      "Delhi"
+    ],
+    "msme_category": "small",
+    "is_msme": true,
+    "certifications": [
+      "GST registration",
+      "Udyam registration"
+    ],
+    "past_projects": [],
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 3800000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 3100000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 2700000
+      }
+    ],
+    "incorporated_on": "2016-05-12"
+  },
+  "verdict": "eligible",
+  "criteria": [
+    {
+      "description": "Average turnover of last 3 FYs >= Rs 30 lakh",
+      "status": "met",
+      "evidence": [
+        "during the last 3 financial years should be at least"
+      ],
+      "query": "average annual financial turnover"
+    },
+    {
+      "description": "Valid GST registration",
+      "status": "met",
+      "evidence": [
+        "must hold a valid GST registration"
+      ],
+      "query": "GST registration"
+    }
+  ],
+  "notes": "Average of 38, 31, 27 lakh = 32 lakh >= 30 lakh."
+}

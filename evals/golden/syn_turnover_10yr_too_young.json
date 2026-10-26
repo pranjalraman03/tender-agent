@@ -1,0 +1,66 @@
+{
+  "name": "syn_turnover_10yr_too_young",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/turnover_10yr_avg.pdf"
+  ],
+  "tender": {
+    "title": "Electrical works for the civic centre",
+    "org_name": "Municipal Corporation (synthetic)",
+    "industries": [
+      "electrical_works"
+    ]
+  },
+  "profile": {
+    "company_name": "Voltline Services (synthetic)",
+    "description": "Electrical maintenance contractor for municipal bodies.",
+    "industries": [
+      "electrical_works"
+    ],
+    "states": [
+      "Delhi"
+    ],
+    "msme_category": "small",
+    "is_msme": true,
+    "certifications": [
+      "GST registration",
+      "Udyam registration"
+    ],
+    "past_projects": [],
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 3800000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 3100000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 2700000
+      }
+    ],
+    "incorporated_on": "2021-06-01"
+  },
+  "verdict": "not_eligible",
+  "criteria": [
+    {
+      "description": "Average turnover of last 10 FYs >= Rs 10 lakh",
+      "status": "not_met",
+      "evidence": [
+        "during the last 10 financial years should be at"
+      ],
+      "query": "average annual financial turnover"
+    },
+    {
+      "description": "Valid GST registration",
+      "status": "met",
+      "evidence": [
+        "must hold a valid GST registration"
+      ],
+      "query": "GST registration"
+    }
+  ],
+  "notes": "Incorporated June 2021; the 10-year window starts FY 2016-17 -> company too young; no relaxation."
+}

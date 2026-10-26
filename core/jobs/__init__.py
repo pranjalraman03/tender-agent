@@ -22,6 +22,7 @@ KINDS: dict[str, bool] = {
     "index": True,
     "fit_check": True,
     "extract_profile": True,
+    "extract_financials": True,
     "match_profile": False,
     "match_tender": False,
     "recheck": False,

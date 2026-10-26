@@ -246,6 +246,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profile/ca-certificate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * From Ca Certificate
+         * @description Upload a CA turnover certificate; its year-by-year figures are read in the background
+         *     into the profile draft for review.
+         */
+        post: operations["from_ca_certificate_profile_ca_certificate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profile/confirm": {
         parameters: {
             query?: never;
@@ -309,6 +330,44 @@ export interface paths {
          * @description SSE: emits matches as they are created or updated (prefiltered -> agent_checked).
          */
         get: operations["stream_matches_matches_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{tender_id}/check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Check
+         * @description Queue an eligibility check of this tender for the user's confirmed profile.
+         *     Cached per profile version, so asking twice costs nothing.
+         */
+        post: operations["request_check_reports__tender_id__check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/reports/{tender_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check Status */
+        get: operations["check_status_reports__tender_id__status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -453,6 +512,11 @@ export interface components {
             /** File */
             file: string;
         };
+        /** Body_from_ca_certificate_profile_ca_certificate_post */
+        Body_from_ca_certificate_profile_ca_certificate_post: {
+            /** File */
+            file: string;
+        };
         /** Body_from_udyam_profile_udyam_post */
         Body_from_udyam_profile_udyam_post: {
             /** File */
@@ -507,6 +571,24 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** CompanyDocumentOut */
+        CompanyDocumentOut: {
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /** Filename */
+            filename: string | null;
+            /**
+             * Uploaded At
+             * Format: date-time
+             */
+            uploaded_at: string;
+            /** Extracted */
+            extracted: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** DeadJob */
         DeadJob: {
             /** Id */
@@ -546,6 +628,11 @@ export interface components {
             criterion_id: string;
             /** Criterion */
             criterion: string;
+            /**
+             * Category
+             * @default other
+             */
+            category: string;
             /** Status */
             status: string;
             /** Clause Ids */
@@ -699,6 +786,10 @@ export interface components {
             past_projects: {
                 [key: string]: unknown;
             }[];
+            /** Turnover By Year */
+            turnover_by_year: components["schemas"]["TurnoverYear"][];
+            /** Incorporated On */
+            incorporated_on: string | null;
             /** Field Sources */
             field_sources: {
                 [key: string]: unknown;
@@ -713,6 +804,11 @@ export interface components {
         ProfileState: {
             draft: components["schemas"]["ProfileOut"] | null;
             confirmed: components["schemas"]["ProfileOut"] | null;
+            /**
+             * Documents
+             * @default []
+             */
+            documents: components["schemas"]["CompanyDocumentOut"][];
         };
         /** ProfileUpdate */
         ProfileUpdate: {
@@ -730,10 +826,12 @@ export interface components {
             msme_category?: ("micro" | "small" | "medium") | null;
             /** States */
             states?: string[] | null;
-            /** Annual Turnover Inr */
-            annual_turnover_inr?: number | null;
             /** Years In Business */
             years_in_business?: number | null;
+            /** Incorporated On */
+            incorporated_on?: string | null;
+            /** Turnover By Year */
+            turnover_by_year?: components["schemas"]["TurnoverYear"][] | null;
             /** Is Msme */
             is_msme?: boolean | null;
             /** Certifications */
@@ -853,6 +951,20 @@ export interface components {
             page: number;
             /** Page Size */
             page_size: number;
+        };
+        /** TurnoverYear */
+        TurnoverYear: {
+            /**
+             * Financial Year
+             * @description Indian financial year, e.g. 2024-25
+             */
+            financial_year: string;
+            /** Turnover Inr */
+            turnover_inr: number;
+            /** Source */
+            source?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** UdyamOut */
         UdyamOut: {
@@ -1374,6 +1486,41 @@ export interface operations {
             };
         };
     };
+    from_ca_certificate_profile_ca_certificate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_from_ca_certificate_profile_ca_certificate_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileState"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     confirm_profile_profile_confirm_post: {
         parameters: {
             query?: never;
@@ -1496,6 +1643,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    request_check_reports__tender_id__check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_status_reports__tender_id__status_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                tender_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

@@ -1,0 +1,66 @@
+{
+  "name": "syn_turnover_1yr_met",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/turnover_1yr.pdf"
+  ],
+  "tender": {
+    "title": "Supply of LED street light fittings",
+    "org_name": "Municipal Corporation (synthetic)",
+    "industries": [
+      "electrical_works"
+    ]
+  },
+  "profile": {
+    "company_name": "Voltline Services (synthetic)",
+    "description": "Electrical maintenance contractor for municipal bodies.",
+    "industries": [
+      "electrical_works"
+    ],
+    "states": [
+      "Delhi"
+    ],
+    "msme_category": "small",
+    "is_msme": true,
+    "certifications": [
+      "GST registration",
+      "Udyam registration"
+    ],
+    "past_projects": [],
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 3800000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 3100000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 2700000
+      }
+    ],
+    "incorporated_on": "2016-05-12"
+  },
+  "verdict": "eligible",
+  "criteria": [
+    {
+      "description": "Turnover >= Rs 35 lakh in the last financial year",
+      "status": "met",
+      "evidence": [
+        "minimum annual turnover of Rs. 35 lakh"
+      ],
+      "query": "minimum annual turnover"
+    },
+    {
+      "description": "Valid GST registration",
+      "status": "met",
+      "evidence": [
+        "must hold a valid GST registration"
+      ],
+      "query": "GST registration"
+    }
+  ],
+  "notes": "FY 2025-26 = 38 lakh >= 35 lakh."
+}

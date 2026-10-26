@@ -2,7 +2,7 @@
 from the OpenAPI schema these produce."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -107,6 +107,20 @@ class PastProject(BaseModel):
     year: int | None = None
 
 
+class TurnoverYear(BaseModel):
+    financial_year: str = Field(description="Indian financial year, e.g. 2024-25")
+    turnover_inr: float = Field(ge=0)
+    source: dict[str, Any] | None = None
+
+
+class CompanyDocumentOut(BaseModel):
+    id: int
+    kind: str
+    filename: str | None
+    uploaded_at: datetime
+    extracted: dict[str, Any] | None
+
+
 class ProfileOut(BaseModel):
     id: int
     version: int
@@ -122,6 +136,8 @@ class ProfileOut(BaseModel):
     is_msme: bool | None
     certifications: list[str]
     past_projects: list[dict[str, Any]]
+    turnover_by_year: list[TurnoverYear]
+    incorporated_on: date | None
     field_sources: dict[str, Any]
     extraction_pending: bool = False
 
@@ -129,6 +145,7 @@ class ProfileOut(BaseModel):
 class ProfileState(BaseModel):
     draft: ProfileOut | None
     confirmed: ProfileOut | None
+    documents: list[CompanyDocumentOut] = []
 
 
 class WebsiteRequest(BaseModel):
@@ -143,8 +160,9 @@ class ProfileUpdate(BaseModel):
     nic_codes: list[str] | None = None
     msme_category: Literal["micro", "small", "medium"] | None = None
     states: list[str] | None = None
-    annual_turnover_inr: float | None = Field(None, ge=0)
     years_in_business: int | None = Field(None, ge=0, le=200)
+    incorporated_on: date | None = None
+    turnover_by_year: list[TurnoverYear] | None = None
     is_msme: bool | None = None
     certifications: list[str] | None = None
     past_projects: list[PastProject] | None = None
@@ -175,6 +193,7 @@ class MatchUpdate(BaseModel):
 class FindingOut(BaseModel):
     criterion_id: str
     criterion: str
+    category: str = "other"
     status: str
     clause_ids: list[int]
     note: str

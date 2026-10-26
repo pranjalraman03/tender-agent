@@ -1,0 +1,66 @@
+{
+  "name": "syn_turnover_5yr_missing_years",
+  "synthetic": true,
+  "pdfs": [
+    "synthetic/turnover_5yr_avg.pdf"
+  ],
+  "tender": {
+    "title": "Annual maintenance of traffic signals",
+    "org_name": "Municipal Corporation (synthetic)",
+    "industries": [
+      "electrical_works"
+    ]
+  },
+  "profile": {
+    "company_name": "Voltline Services (synthetic)",
+    "description": "Electrical maintenance contractor for municipal bodies.",
+    "industries": [
+      "electrical_works"
+    ],
+    "states": [
+      "Delhi"
+    ],
+    "msme_category": "small",
+    "is_msme": true,
+    "certifications": [
+      "GST registration",
+      "Udyam registration"
+    ],
+    "past_projects": [],
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 3800000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 3100000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 2700000
+      }
+    ],
+    "incorporated_on": "2016-05-12"
+  },
+  "verdict": "possibly_eligible",
+  "criteria": [
+    {
+      "description": "Average turnover of last 5 FYs >= Rs 25 lakh",
+      "status": "unclear",
+      "evidence": [
+        "during the last 5 financial years should be at least"
+      ],
+      "query": "average annual financial turnover"
+    },
+    {
+      "description": "Valid GST registration",
+      "status": "met",
+      "evidence": [
+        "must hold a valid GST registration"
+      ],
+      "query": "GST registration"
+    }
+  ],
+  "notes": "Company existed all 5 years but only 3 are on file: FY 2022-23 and 2021-22 missing -> unclear, upload prompt."
+}

@@ -56,6 +56,48 @@ experience criteria, subject to meeting quality and technical specifications."""
 ]
 
 
+def turnover_tender(nit: str, item: str, turnover_clause: str) -> list[str]:
+    """A short notice whose only financial criterion is the given turnover rule."""
+    return [
+        f"""MUNICIPAL CORPORATION (SYNTHETIC)
+NOTICE INVITING TENDER No. {nit}
+1. Name of work: {item}
+2. Earnest money: Rs. 50,000/-
+ELIGIBILITY CRITERIA
+1. {turnover_clause}
+2. The bidder must hold a valid GST registration.
+3. No relaxation in the above criteria is admissible for any category of bidder."""
+    ]
+
+
+TURNOVER_CASES = {
+    "turnover_1yr.pdf": turnover_tender(
+        "SYN/T1/2026",
+        "Supply of LED street light fittings.",
+        "The bidder should have a minimum annual turnover of Rs. 35 lakh in the last financial "
+        "year.",
+    ),
+    "turnover_3yr_avg.pdf": turnover_tender(
+        "SYN/T3/2026",
+        "Maintenance of electrical installations in ward offices.",
+        "Average annual financial turnover during the last 3 financial years should be at least "
+        "Rs. 30 lakh.",
+    ),
+    "turnover_5yr_avg.pdf": turnover_tender(
+        "SYN/T5/2026",
+        "Annual maintenance of traffic signals.",
+        "Average annual financial turnover during the last 5 financial years should be at least "
+        "Rs. 25 lakh.",
+    ),
+    "turnover_10yr_avg.pdf": turnover_tender(
+        "SYN/T10/2026",
+        "Electrical works for the civic centre.",
+        "Average annual financial turnover during the last 10 financial years should be at "
+        "least Rs. 10 lakh.",
+    ),
+}
+
+
 def write(name: str, pages: list[str]) -> None:
     doc = pymupdf.open()
     for body in pages:
@@ -69,3 +111,5 @@ def write(name: str, pages: list[str]) -> None:
 if __name__ == "__main__":
     write("dda_streetlights.pdf", STREETLIGHT)
     write("aiims_ophthalmoscope.pdf", SUPPLY)
+    for name, pages in TURNOVER_CASES.items():
+        write(name, pages)

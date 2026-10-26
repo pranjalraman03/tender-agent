@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from apps.api.deps import User, UserDB, rate_limit
 from apps.api.schemas import (
+    CompanyDocumentOut,
     Me,
     OrgOut,
     ProfileOut,
@@ -30,7 +31,7 @@ async def _profile_out(db: AsyncSession, row: dict[str, Any] | None) -> ProfileO
     pending = (
         await db.execute(
             text(
-                "SELECT 1 FROM jobs WHERE kind = 'extract_profile' "
+                "SELECT 1 FROM jobs WHERE kind IN ('extract_profile', 'extract_financials') "
                 "AND status IN ('queued', 'running') "
                 "AND (payload->>'profile_id')::bigint = :id"
             ),
@@ -41,6 +42,7 @@ async def _profile_out(db: AsyncSession, row: dict[str, Any] | None) -> ProfileO
     for k in ("industries", "nic_codes", "states", "certifications"):
         data[k] = data.get(k) or []
     data["past_projects"] = row.get("past_projects") or []
+    data["turnover_by_year"] = row.get("turnover_by_year") or []
     data["field_sources"] = row.get("field_sources") or {}
     return ProfileOut(**data, extraction_pending=pending)
 
@@ -60,9 +62,19 @@ async def _state(db: AsyncSession, org_id: Any) -> ProfileState:
         .one_or_none()
     )
     draft = await service.get_draft(db, org_id)
+    documents = (
+        await db.execute(
+            text(
+                "SELECT id, kind, filename, uploaded_at, extracted FROM company_documents "
+                "WHERE org_id = :o ORDER BY uploaded_at DESC"
+            ),
+            {"o": org_id},
+        )
+    ).mappings()
     return ProfileState(
         draft=await _profile_out(db, draft),
         confirmed=await _profile_out(db, dict(confirmed) if confirmed else None),
+        documents=[CompanyDocumentOut(**d) for d in documents],
     )
 
 
@@ -116,6 +128,23 @@ async def from_udyam(user: User, db: UserDB, file: Annotated[UploadFile, File()]
     )
 
 
+@router.post("/profile/ca-certificate")
+async def from_ca_certificate(
+    user: User, db: UserDB, file: Annotated[UploadFile, File()]
+) -> ProfileState:
+    """Upload a CA turnover certificate; its year-by-year figures are read in the background
+    into the profile draft for review."""
+    await rate_limit(f"profile_ca:{user.org_id}", limit=10, window_s=3600)
+    data = await file.read(service.MAX_DOC_BYTES + 1)
+    try:
+        await service.add_ca_certificate(
+            db, get_storage(), user.org_id, file.filename or "ca-certificate.pdf", data
+        )
+    except service.ProfileError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return await _state(db, user.org_id)
+
+
 @router.patch("/profile")
 async def update_profile(body: ProfileUpdate, user: User, db: UserDB) -> ProfileState:
     changes = body.model_dump(exclude_unset=True)
@@ -124,8 +153,9 @@ async def update_profile(body: ProfileUpdate, user: User, db: UserDB) -> Profile
         await db.execute(
             text("UPDATE orgs SET name = :n WHERE id = :o"), {"n": name.strip(), "o": user.org_id}
         )
-    if "past_projects" in changes and changes["past_projects"] is not None:
-        changes["past_projects"] = [dict(p) for p in changes["past_projects"]]
+    for key in ("past_projects", "turnover_by_year"):
+        if changes.get(key) is not None:
+            changes[key] = [dict(p) for p in changes[key]]
     try:
         await service.update_draft(db, user.org_id, changes)
     except service.ProfileError as exc:

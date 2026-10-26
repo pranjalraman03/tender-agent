@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 import uuid
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -126,10 +127,12 @@ async def load_case(sm: async_sessionmaker[AsyncSession], case: GoldCase) -> tup
             text("""
                 INSERT INTO company_profiles (org_id, version, confirmed_at, description,
                     industries, nic_codes, msme_category, states, annual_turnover_inr,
-                    years_in_business, is_msme, certifications, past_projects)
+                    years_in_business, is_msme, certifications, past_projects,
+                    turnover_by_year, incorporated_on)
                 VALUES (:org, 1, now(), :description, :industries, :nic_codes, :msme_category,
                         :states, :turnover, :years, :is_msme, :certifications,
-                        CAST(:past_projects AS jsonb))
+                        CAST(:past_projects AS jsonb), CAST(:turnover_by_year AS jsonb),
+                        :incorporated_on)
             """),
             {
                 "org": org_id,
@@ -138,11 +141,15 @@ async def load_case(sm: async_sessionmaker[AsyncSession], case: GoldCase) -> tup
                 "nic_codes": p.get("nic_codes", []),
                 "msme_category": p.get("msme_category"),
                 "states": p.get("states", []),
-                "turnover": p.get("annual_turnover_inr"),
+                "turnover": (p.get("turnover_by_year") or [{}])[0].get("turnover_inr"),
                 "years": p.get("years_in_business"),
                 "is_msme": p.get("is_msme"),
                 "certifications": p.get("certifications", []),
                 "past_projects": json.dumps(p.get("past_projects", [])),
+                "turnover_by_year": json.dumps(p.get("turnover_by_year", [])),
+                "incorporated_on": (
+                    date.fromisoformat(p["incorporated_on"]) if p.get("incorporated_on") else None
+                ),
             },
         )
         docs = (

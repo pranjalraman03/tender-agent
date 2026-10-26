@@ -45,5 +45,13 @@ def profile_for_agent(profile: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"company_name": profile["company_name"]}
     for key in PROFILE_FIELDS:
         value = profile.get(key)
-        out[key] = str(value) if key == "annual_turnover_inr" and value is not None else value
+        if key == "incorporated_on" and value is not None:
+            value = str(value)
+        if key == "turnover_by_year":
+            # Figures only; sources stay out of the prompt.
+            value = [
+                {"financial_year": r.get("financial_year"), "turnover_inr": r.get("turnover_inr")}
+                for r in value or []
+            ]
+        out[key] = value
     return out

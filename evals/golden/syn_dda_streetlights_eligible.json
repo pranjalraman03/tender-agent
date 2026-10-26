@@ -43,7 +43,21 @@
         "year": 2025
       }
     ],
-    "annual_turnover_inr": 3200000
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 3800000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 3100000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 2700000
+      }
+    ],
+    "incorporated_on": "2018-04-10"
   },
   "verdict": "eligible",
   "criteria": [

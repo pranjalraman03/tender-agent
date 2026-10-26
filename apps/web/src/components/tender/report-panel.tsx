@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangleIcon, CheckCircle2Icon, ClipboardCheckIcon, CircleHelpIcon, Loader2Icon, ShieldCheckIcon, XCircleIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon, ClipboardCheckIcon, UploadIcon, CircleHelpIcon, Loader2Icon, ShieldCheckIcon, XCircleIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect } from "react";
 import { EmptyState as Empty } from "@/components/empty-state";
@@ -144,6 +144,12 @@ export function ReportPanel({ tenderId, hasProfile }: { tenderId: number; hasPro
                           return c ? <Citation key={id} clause={c} /> : null;
                         })}
                       </div>
+                      {f.category === "turnover" && f.status === "unclear" && (
+                        <Button size="sm" variant="outline" className="mt-1" nativeButton={false}
+                                render={<Link href="/profile#financials" />}>
+                          <UploadIcon />Upload CA turnover certificate
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </li>

@@ -23,7 +23,6 @@
     "msme_category": "micro",
     "is_msme": true,
     "years_in_business": 4,
-    "annual_turnover_inr": 4000000,
     "certifications": [
       "ISO 13485:2016",
       "Authorised distributor certificate from manufacturer",
@@ -36,7 +35,22 @@
         "value_inr": 1800000,
         "year": 2025
       }
-    ]
+    ],
+    "turnover_by_year": [
+      {
+        "financial_year": "2025-26",
+        "turnover_inr": 4500000
+      },
+      {
+        "financial_year": "2024-25",
+        "turnover_inr": 4000000
+      },
+      {
+        "financial_year": "2023-24",
+        "turnover_inr": 3500000
+      }
+    ],
+    "incorporated_on": "2021-08-02"
   },
   "verdict": "eligible",
   "criteria": [

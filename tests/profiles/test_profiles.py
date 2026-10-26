@@ -76,16 +76,33 @@ async def test_profile_flow_udyam_edit_confirm(sessionmaker: SM, tmp_path: Path)
     assert draft is not None and draft["version"] == 1
     assert draft["industries"] == ["electrical_works"] and draft["msme_category"] == "small"
     assert draft["field_sources"]["nic_codes"][0]["udyam_number"] == "UDYAM-DL-08-0012345"
+    assert draft["incorporated_on"] == date(2016, 5, 12)  # from the certificate
 
     async with sessionmaker() as s, s.begin():
         with pytest.raises(ProfileError):
             await update_draft(s, org, {"industries": ["not_a_real_industry"]})
     async with sessionmaker() as s, s.begin():
+        with pytest.raises(ProfileError):
+            await update_draft(
+                s, org, {"turnover_by_year": [{"financial_year": "2024-27", "turnover_inr": 1}]}
+            )
+    async with sessionmaker() as s, s.begin():
         updated = await update_draft(
-            s, org, {"annual_turnover_inr": 3200000, "states": ["Delhi", "Haryana"]}
+            s,
+            org,
+            {
+                "turnover_by_year": [
+                    {"financial_year": "FY 2023-24", "turnover_inr": 2700000},
+                    {"financial_year": "2024-2025", "turnover_inr": 3100000},
+                ],
+                "states": ["Delhi", "Haryana"],
+            },
         )
         version = await confirm(s, org)
-    assert updated["field_sources"]["annual_turnover_inr"] == [{"source": "user"}]
+    # Labels normalised, newest first, user-entered rows marked as such; latest year mirrored.
+    assert [r["financial_year"] for r in updated["turnover_by_year"]] == ["2024-25", "2023-24"]
+    assert updated["turnover_by_year"][0]["source"] == {"source": "user"}
+    assert updated["annual_turnover_inr"] == 3100000
     assert version == 1
 
     # Editing after confirmation creates version 2 from version 1; v1 stays untouched.
@@ -101,7 +118,7 @@ async def test_profile_flow_udyam_edit_confirm(sessionmaker: SM, tmp_path: Path)
                 {"o": org},
             )
         ).one()
-    assert v2["version"] == 2 and v2["annual_turnover_inr"] == 3200000
+    assert v2["version"] == 2 and len(v2["turnover_by_year"]) == 2  # copied from v1
     assert v1.description is None and v1.confirmed_at is not None
     assert jobs == [f"match_profile:{org}:v1"]
 

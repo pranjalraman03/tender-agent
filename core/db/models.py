@@ -2,7 +2,7 @@
 (views, RLS policies, generated columns, indexes); these models mirror the tables."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -11,6 +11,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Computed,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -92,6 +93,7 @@ class Tender(Base):
     scope_embedding: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
     source_url: Mapped[str | None] = mapped_column(Text)
     portal_fields: Mapped[dict[str, Any]] = mapped_column(server_default="{}")
+    is_demo: Mapped[bool] = mapped_column(Boolean, server_default="false")
     summary: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = _now()
     updated_at: Mapped[datetime] = _now()
@@ -158,6 +160,7 @@ class Org(Base):
         UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
     )
     name: Mapped[str] = mapped_column(Text)
+    is_demo: Mapped[bool] = mapped_column(Boolean, server_default="false")
     created_at: Mapped[datetime] = _now()
 
 
@@ -195,7 +198,23 @@ class CompanyProfile(Base):
     field_sources: Mapped[dict[str, Any]] = mapped_column(server_default="{}")
     confirmed_at: Mapped[datetime | None]
     profile_embedding: Mapped[Any | None] = mapped_column(Vector(EMBEDDING_DIM))
+    turnover_by_year: Mapped[dict[str, Any]] = mapped_column(server_default="[]")
+    incorporated_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = _now()
+
+
+class CompanyDocument(Base):
+    __tablename__ = "company_documents"
+    __table_args__ = (UniqueConstraint("org_id", "sha256"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    org_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("orgs.id", ondelete="CASCADE"))
+    kind: Mapped[str] = mapped_column(Text)
+    storage_key: Mapped[str] = mapped_column(Text)
+    sha256: Mapped[str] = mapped_column(Text)
+    filename: Mapped[str | None] = mapped_column(Text)
+    extracted: Mapped[dict[str, Any] | None]
+    uploaded_at: Mapped[datetime] = _now()
 
 
 class Match(Base):
