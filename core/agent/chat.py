@@ -36,15 +36,18 @@ SEARCH_TOOL = {
 }
 
 
-async def tender_brief(session: AsyncSession, tender_id: int) -> dict[str, Any] | None:
+async def tender_brief(
+    session: AsyncSession, tender_id: int, include_demo: bool = False
+) -> dict[str, Any] | None:
     row = (
         (
             await session.execute(
                 text(
                     "SELECT id, title, org_name, value_inr, emd_inr, closes_at, work_state, "
-                    "summary FROM live_tenders WHERE id = :t"
+                    "summary FROM live_tenders_incl_demo "
+                    "WHERE id = :t AND (NOT is_demo OR :include_demo)"
                 ),
-                {"t": tender_id},
+                {"t": tender_id, "include_demo": include_demo},
             )
         )
         .mappings()
@@ -60,9 +63,10 @@ async def answer(
     question: str,
     history: list[dict[str, str]],
     ctx: CallContext,
+    include_demo: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Yields {"type": "token", "text"} events, then {"type": "done", "text", "cited"}."""
-    brief = await tender_brief(session, tender_id)
+    brief = await tender_brief(session, tender_id, include_demo)
     if brief is None:
         yield {"type": "error", "message": "This tender is no longer open."}
         return

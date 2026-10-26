@@ -104,7 +104,7 @@ async def test_profile_flow_over_http(api: httpx.AsyncClient, sessionmaker: SM) 
             "company_name": "Brightline",
             "industries": ["electrical_works"],
             "states": ["Delhi"],
-            "annual_turnover_inr": 3200000,
+            "turnover_by_year": [{"financial_year": "2025-26", "turnover_inr": 3200000}],
             "past_projects": [{"title": "Street lights AMC", "value_inr": 2600000, "year": 2025}],
         },
     )
@@ -175,3 +175,76 @@ async def test_request_eligibility_check(
     assert n == 1  # idempotent per profile version
     status = (await api.get(f"/reports/{ids['live']}/status", headers=h)).json()
     assert status["status"] == "queued"
+
+
+async def test_ca_certificate_endpoint_rejects_non_pdf(api: httpx.AsyncClient) -> None:
+    h = token("ca@co.test")
+    r = await api.post(
+        "/profile/ca-certificate", headers=h, files={"file": ("cert.txt", b"hello", "text/plain")}
+    )
+    assert r.status_code == 422 and "PDF" in r.json()["detail"]
+    state = (await api.get("/profile", headers=h)).json()
+    assert state["documents"] == []
+
+
+async def test_demo_data_is_admin_only(
+    api: httpx.AsyncClient, sessionmaker: SM, portal_id: int, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(get_settings(), "admin_emails", ["boss@co.test"])
+    async with sessionmaker() as s, s.begin():
+        await seed_reference_data(s)
+        demo_org = (
+            await s.execute(
+                text("INSERT INTO orgs (name, is_demo) VALUES ('Demo Co', true) RETURNING id")
+            )
+        ).scalar_one()
+        ids = {}
+        for ref, demo in (("real", False), ("demo", True)):
+            ids[ref] = (
+                await s.execute(
+                    text(
+                        "INSERT INTO tenders (portal_id, tender_ref, title, pipeline_status, closes_at, "
+                        "is_demo) VALUES (:p, :r, :r, 'indexed', now() + interval '5 days', :d) "
+                        "RETURNING id"
+                    ),
+                    {"p": portal_id, "r": ref, "d": demo},
+                )
+            ).scalar_one()
+
+    # Anonymous visitors and regular users: real tender only; demo tender is a 404.
+    for headers in ({}, token("user@co.test")):
+        feed = (await api.get("/tenders", headers=headers)).json()
+        assert [t["title"] for t in feed["items"]] == ["real"]
+        assert (await api.get(f"/tenders/{ids['demo']}", headers=headers)).status_code == 404
+    # Admin: sees both, and lands in the demo company.
+    admin = token("boss@co.test")
+    feed = (await api.get("/tenders", headers=admin)).json()
+    assert sorted(t["title"] for t in feed["items"]) == ["demo", "real"]
+    assert (await api.get(f"/tenders/{ids['demo']}", headers=admin)).status_code == 200
+    assert (await api.get("/me", headers=admin)).json()["org"]["id"] == str(demo_org)
+    # A regular user never ends up in the demo company.
+    assert (await api.get("/me", headers=token("user@co.test"))).json()["org"]["id"] != str(
+        demo_org
+    )
+
+    # Removed from ADMIN_EMAILS: loses admin role and the demo company.
+    monkeypatch.setattr(get_settings(), "admin_emails", [])
+    me = (await api.get("/me", headers=admin)).json()
+    assert me["role"] == "owner" and me["org"]["id"] != str(demo_org)
+    assert (await api.get(f"/tenders/{ids['demo']}", headers=admin)).status_code == 404
+
+
+async def test_existing_user_promoted_to_admin_moves_to_demo_company(
+    api: httpx.AsyncClient, sessionmaker: SM, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    h = token("later@co.test")
+    own_org = (await api.get("/me", headers=h)).json()["org"]["id"]
+    async with sessionmaker() as s, s.begin():
+        demo_org = (
+            await s.execute(
+                text("INSERT INTO orgs (name, is_demo) VALUES ('Demo Co', true) RETURNING id")
+            )
+        ).scalar_one()
+    monkeypatch.setattr(get_settings(), "admin_emails", ["later@co.test"])
+    me = (await api.get("/me", headers=h)).json()
+    assert me["role"] == "admin" and me["org"]["id"] == str(demo_org) != own_org

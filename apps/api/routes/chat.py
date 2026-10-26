@@ -64,7 +64,13 @@ async def chat(
                 done: dict[str, Any] | None = None
                 try:
                     async for event in answer(
-                        session, Claude(), tender_id, body.question, history, ctx
+                        session,
+                        Claude(),
+                        tender_id,
+                        body.question,
+                        history,
+                        ctx,
+                        include_demo=bool(user and user.is_admin),
                     ):
                         if event["type"] == "done":
                             done = event

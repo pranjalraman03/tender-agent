@@ -2,7 +2,6 @@
 record a `published` (or `corrigendum`) event, enqueue match_tender / fit_check rechecks."""
 
 import json
-from collections.abc import Sequence
 from typing import Any
 
 import structlog
@@ -15,8 +14,6 @@ from core.llm.claude import CallContext, Claude
 from core.llm.embeddings import embed, to_pgvector
 
 log = structlog.get_logger()
-
-ELIGIBILITY_WORDS = ("eligib", "qualif", "turnover", "experience", "criteria", "msme", "mse")
 
 
 def get_claude() -> Claude:  # replaced in tests
@@ -132,7 +129,7 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
             session, "match_tender", {"tender_id": tender_id}, f"match_tender:{tender_id}"
         )
     elif trigger_doc is not None:
-        await _handle_corrigendum(session, tender_id, int(trigger_doc), clauses)
+        await _handle_corrigendum(session, tender_id, int(trigger_doc))
 
     log.info(
         "indexed",
@@ -144,11 +141,9 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
     )
 
 
-async def _handle_corrigendum(
-    session: AsyncSession, tender_id: int, document_id: int, clauses: Sequence[Any]
-) -> None:
-    """A new document on an already-indexed tender. If it touches eligibility, every org
-    with a match on this tender gets its fit re-checked."""
+async def _handle_corrigendum(session: AsyncSession, tender_id: int, document_id: int) -> None:
+    """A new document on an already-indexed tender: record a corrigendum event and re-check
+    every org with a match on this tender."""
     await session.execute(
         text("""
             INSERT INTO tender_events (tender_id, kind, document_id)
@@ -158,11 +153,10 @@ async def _handle_corrigendum(
         """),
         {"t": tender_id, "d": document_id},
     )
-    new_text = " ".join(
-        f"{c.section or ''} {c.text}".lower() for c in clauses if c.document_id == document_id
-    )
-    if not any(w in new_text for w in ELIGIBILITY_WORDS):
-        return
+    # Every org with a match on this tender is re-checked. Guessing from keywords whether a
+    # corrigendum touches eligibility would miss differently-worded amendments; a re-check is
+    # cheap next to a wrong verdict. (Reports are cached per profile version, so needs_recheck
+    # is what forces the re-run.)
     orgs = (
         (
             await session.execute(

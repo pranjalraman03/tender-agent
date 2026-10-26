@@ -57,18 +57,31 @@ def _decode(token: str) -> dict[str, object]:
 
 
 async def _load_or_provision(email: str, name: str | None) -> CurrentUser:
+    """Find the user, creating them on first sign-in.
+
+    Admins (ADMIN_EMAILS) belong to the demo company when one exists (scripts/seed_demo.py),
+    so demo data is only ever seen by admins. Everyone else gets their own company.
+    """
     email = email.strip().lower()
     admin = email in {e.lower() for e in get_settings().admin_emails}
     async with system_transaction() as s:
+        demo_org = (
+            await s.execute(text("SELECT id FROM orgs WHERE is_demo ORDER BY created_at LIMIT 1"))
+        ).scalar_one_or_none()
         row = (
             await s.execute(
                 text("SELECT id, org_id, role FROM users WHERE email = :e"), {"e": email}
             )
         ).one_or_none()
         if row is None:
-            org_id = (
-                await s.execute(text("INSERT INTO orgs (name) VALUES ('My company') RETURNING id"))
-            ).scalar_one()
+            if admin and demo_org is not None:
+                org_id = demo_org
+            else:
+                org_id = (
+                    await s.execute(
+                        text("INSERT INTO orgs (name) VALUES ('My company') RETURNING id")
+                    )
+                ).scalar_one()
             row = (
                 await s.execute(
                     text(
@@ -79,10 +92,31 @@ async def _load_or_provision(email: str, name: str | None) -> CurrentUser:
                     {"o": org_id, "e": email, "n": name, "r": "admin" if admin else "owner"},
                 )
             ).one()
-        elif admin and row.role != "admin":
-            await s.execute(text("UPDATE users SET role = 'admin' WHERE id = :id"), {"id": row.id})
-            row = row._replace(role="admin")
-    return CurrentUser(id=row.id, org_id=row.org_id, email=email, role=row.role)
+        user_id, org_id, role = row.id, row.org_id, row.role
+        if admin and (role != "admin" or (demo_org is not None and org_id != demo_org)):
+            # Admins always work in the demo company when one exists.
+            org_id = demo_org if demo_org is not None else org_id
+            await s.execute(
+                text("UPDATE users SET role = 'admin', org_id = :o WHERE id = :id"),
+                {"o": org_id, "id": user_id},
+            )
+            role = "admin"
+        elif not admin and role == "admin":
+            # Removed from ADMIN_EMAILS: no longer an admin. If they were sitting in the demo
+            # company, move them to a company of their own so they lose demo access too.
+            new_org = org_id
+            if org_id == demo_org:
+                new_org = (
+                    await s.execute(
+                        text("INSERT INTO orgs (name) VALUES ('My company') RETURNING id")
+                    )
+                ).scalar_one()
+            await s.execute(
+                text("UPDATE users SET role = 'owner', org_id = :o WHERE id = :id"),
+                {"o": new_org, "id": user_id},
+            )
+            role, org_id = "owner", new_org
+    return CurrentUser(id=user_id, org_id=org_id, email=email, role=role)
 
 
 async def optional_user(

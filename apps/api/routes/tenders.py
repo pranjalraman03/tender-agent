@@ -1,4 +1,4 @@
-"""Public tender routes. Every query here reads live_tenders (rule 1): a tender past its
+"""Public tender routes. Every query reads live tenders (rule 1): a tender past its
 deadline, closed, cancelled or not yet indexed is simply not found."""
 
 from typing import Annotated, Any
@@ -7,7 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 from fastapi.responses import RedirectResponse, Response
 from sqlalchemy import text
 
-from apps.api.deps import PublicDB, User, UserDB, rate_limit
+from apps.api.deps import CurrentUser, MaybeUser, PublicDB, User, UserDB, rate_limit
 from apps.api.schemas import (
     ClauseOut,
     DocumentOut,
@@ -46,6 +46,7 @@ async def meta(db: PublicDB) -> Meta:
 @router.get("/tenders")
 async def list_tenders(
     db: PublicDB,
+    user: MaybeUser,
     state: Annotated[list[str] | None, Query()] = None,
     industry: Annotated[list[str] | None, Query()] = None,
     q: Annotated[str | None, Query(max_length=200)] = None,
@@ -53,6 +54,7 @@ async def list_tenders(
     page_size: Annotated[int, Query(ge=1, le=50)] = 20,
 ) -> TenderPage:
     params: dict[str, Any] = {
+        "include_demo": include_demo(user),
         "states": state,
         "industries": industry,
         "q": q,
@@ -62,8 +64,9 @@ async def list_tenders(
     total = (
         await db.execute(
             text("""
-        SELECT count(*) FROM live_tenders t
-        WHERE (CAST(:states AS text[]) IS NULL OR t.work_state = ANY(:states) OR t.is_central)
+        SELECT count(*) FROM live_tenders_incl_demo t
+        WHERE (NOT t.is_demo OR :include_demo)
+          AND (CAST(:states AS text[]) IS NULL OR t.work_state = ANY(:states) OR t.is_central)
           AND (CAST(:industries AS text[]) IS NULL OR t.industries && :industries)
           AND (CAST(:q AS text) IS NULL
                OR t.title ILIKE '%' || :q || '%' OR t.org_name ILIKE '%' || :q || '%'
@@ -78,8 +81,9 @@ async def list_tenders(
                 text("""
         SELECT t.id, t.title, t.org_name, t.work_state, t.is_central, t.industries,
                t.value_inr, t.emd_inr, t.closes_at, t.published_at, t.summary
-        FROM live_tenders t
-        WHERE (CAST(:states AS text[]) IS NULL OR t.work_state = ANY(:states) OR t.is_central)
+        FROM live_tenders_incl_demo t
+        WHERE (NOT t.is_demo OR :include_demo)
+          AND (CAST(:states AS text[]) IS NULL OR t.work_state = ANY(:states) OR t.is_central)
           AND (CAST(:industries AS text[]) IS NULL OR t.industries && :industries)
           AND (CAST(:q AS text) IS NULL
                OR t.title ILIKE '%' || :q || '%' OR t.org_name ILIKE '%' || :q || '%'
@@ -96,7 +100,12 @@ async def list_tenders(
     return TenderPage(items=[card(r) for r in rows], total=total, page=page, page_size=page_size)
 
 
-async def _live_or_404(db: Any, tender_id: int) -> Any:
+def include_demo(user: CurrentUser | None) -> bool:
+    """Demo tenders are visible to admins only (they sit in the demo company)."""
+    return user is not None and user.is_admin
+
+
+async def _live_or_404(db: Any, tender_id: int, user: CurrentUser | None) -> Any:
     row = (
         (
             await db.execute(
@@ -104,10 +113,10 @@ async def _live_or_404(db: Any, tender_id: int) -> Any:
         SELECT t.id, t.title, t.org_name, t.work_state, t.is_central, t.industries,
                t.value_inr, t.emd_inr, t.closes_at, t.published_at, t.summary,
                t.tender_ref, t.source_url, t.portal_fields, p.name AS portal
-        FROM live_tenders t JOIN portals p ON p.id = t.portal_id
-        WHERE t.id = :t
+        FROM live_tenders_incl_demo t JOIN portals p ON p.id = t.portal_id
+        WHERE t.id = :t AND (NOT t.is_demo OR :include_demo)
     """),
-                {"t": tender_id},
+                {"t": tender_id, "include_demo": include_demo(user)},
             )
         )
         .mappings()
@@ -119,8 +128,8 @@ async def _live_or_404(db: Any, tender_id: int) -> Any:
 
 
 @router.get("/tenders/{tender_id}")
-async def get_tender(tender_id: int, db: PublicDB) -> TenderDetail:
-    row = await _live_or_404(db, tender_id)
+async def get_tender(tender_id: int, db: PublicDB, user: MaybeUser) -> TenderDetail:
+    row = await _live_or_404(db, tender_id, user)
     docs = (
         (
             await db.execute(
@@ -160,9 +169,12 @@ async def get_tender(tender_id: int, db: PublicDB) -> TenderDetail:
 
 @router.get("/tenders/{tender_id}/clauses")
 async def get_clauses(
-    tender_id: int, db: PublicDB, ids: Annotated[list[int], Query(max_length=100)]
+    tender_id: int,
+    db: PublicDB,
+    user: MaybeUser,
+    ids: Annotated[list[int], Query(max_length=100)],
 ) -> list[ClauseOut]:
-    await _live_or_404(db, tender_id)
+    await _live_or_404(db, tender_id, user)
     rows = (
         (
             await db.execute(
@@ -180,8 +192,10 @@ async def get_clauses(
 
 
 @router.get("/tenders/{tender_id}/documents/{document_id}/file", response_model=None)
-async def document_file(tender_id: int, document_id: int, db: PublicDB) -> Response:
-    await _live_or_404(db, tender_id)
+async def document_file(
+    tender_id: int, document_id: int, db: PublicDB, user: MaybeUser
+) -> Response:
+    await _live_or_404(db, tender_id, user)
     doc = (
         await db.execute(
             text(
@@ -210,7 +224,7 @@ async def upload_documents(
 ) -> UploadResult:
     """A signed-in user adds a document (e.g. a corrigendum) to a live tender."""
     await rate_limit(f"upload:{user.id}", limit=10, window_s=86400)
-    await _live_or_404(db, tender_id)
+    await _live_or_404(db, tender_id, user)
     data = await file.read(MAX_UPLOAD + 1)
     try:
         result = await ingest_document(

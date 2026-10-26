@@ -34,8 +34,15 @@ async def handle(payload: dict[str, Any], session: AsyncSession) -> None:
     org_id = uuid.UUID(str(payload["org_id"]))
     tender_id = int(payload["tender_id"])
 
+    # Demo tenders are checked only for the demo company, real tenders only for real ones.
     live = (
-        await session.execute(text("SELECT 1 FROM live_tenders WHERE id = :t"), {"t": tender_id})
+        await session.execute(
+            text(
+                "SELECT 1 FROM live_tenders_incl_demo t, orgs o "
+                "WHERE t.id = :t AND o.id = :o AND t.is_demo = o.is_demo"
+            ),
+            {"t": tender_id, "o": org_id},
+        )
     ).first()
     if not live:
         log.info("fit_check_skipped_not_live", tender_id=tender_id)

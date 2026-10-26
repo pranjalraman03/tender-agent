@@ -1,16 +1,18 @@
 """Matching funnel (CLAUDE.md "Matching funnel").
 
 1. Hard filters in SQL on live_tenders: industries overlap, work state in the profile's
-   states (or a central tender), value within what the turnover supports.
+   states (or a central tender). There is deliberately no value / turnover filter: tenders set
+   their own financial rules (30% of cost, 50%, none...), so excluding by a fixed ratio would
+   silently hide tenders. The eligibility check decides with the tender's actual rule.
 2. Similarity in the same query: ORDER BY scope_embedding <=> profile_embedding LIMIT 50.
    Results go into `matches` as stage 'prefiltered' and are visible immediately.
 3. fit_check jobs (the agent) for the top N, cached per profile version.
 Reverse matching (new tender -> profiles) uses the same filters with the roles swapped.
-Only confirmed profiles are ever used (rule 10).
+Only confirmed profiles are ever used (rule 10). Demo tenders pair only with the demo company
+and real tenders only with real companies.
 """
 
 import uuid
-from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import text
@@ -18,12 +20,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core import queue
 from core.config import get_settings
-
-
-def max_tender_value(turnover: Decimal | float | None) -> Decimal | None:
-    if turnover is None or turnover <= 0:
-        return None
-    return Decimal(str(turnover)) / Decimal(str(get_settings().match_min_turnover_ratio))
 
 
 async def _upsert_prefiltered(
@@ -58,19 +54,18 @@ async def match_profile(session: AsyncSession, profile: dict[str, Any]) -> list[
         await session.execute(
             text("""
             SELECT t.id, 1 - (t.scope_embedding <=> p.profile_embedding) AS score
-            FROM live_tenders t, company_profiles p
+            FROM live_tenders_incl_demo t, company_profiles p
+            JOIN orgs o ON o.id = p.org_id
             WHERE p.id = :pid
+              AND t.is_demo = o.is_demo  -- demo tenders only for the demo company
               AND t.scope_embedding IS NOT NULL
               AND t.industries && p.industries
               AND (t.work_state = ANY(p.states) OR t.is_central)
-              AND (t.value_inr IS NULL OR CAST(:max_value AS numeric) IS NULL
-                   OR t.value_inr <= :max_value)
             ORDER BY t.scope_embedding <=> p.profile_embedding
             LIMIT :n
         """),
             {
                 "pid": profile["id"],
-                "max_value": max_tender_value(profile["annual_turnover_inr"]),
                 "n": s.match_shortlist,
             },
         )
@@ -96,17 +91,17 @@ async def match_tender(session: AsyncSession, tender_id: int) -> list[tuple[uuid
             )
             SELECT p.org_id, p.version,
                    1 - (p.profile_embedding <=> t.scope_embedding) AS score
-            FROM live_tenders t, latest p
+            FROM live_tenders_incl_demo t, latest p
+            JOIN orgs o ON o.id = p.org_id
             WHERE t.id = :t
+              AND t.is_demo = o.is_demo  -- demo tenders only for the demo company
               AND p.profile_embedding IS NOT NULL
               AND t.industries && p.industries
               AND (t.work_state = ANY(p.states) OR t.is_central)
-              AND (t.value_inr IS NULL OR p.annual_turnover_inr IS NULL
-                   OR t.value_inr * :ratio <= p.annual_turnover_inr)
             ORDER BY p.profile_embedding <=> t.scope_embedding
             LIMIT :n
         """),
-            {"t": tender_id, "ratio": s.match_min_turnover_ratio, "n": s.match_shortlist},
+            {"t": tender_id, "n": s.match_shortlist},
         )
     ).all()
     for i, r in enumerate(rows):

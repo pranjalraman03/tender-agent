@@ -126,8 +126,10 @@ async def test_forward_funnel_filters_and_ranks(sessionmaker: SM, portal_id: int
         ).scalar_one()
         stages = set((await s.execute(text("SELECT stage FROM matches"))).scalars())
     by_id = {v: k for k, v in ids.items()}
-    assert [by_id[t] for t, _ in results] == ["A", "C", "G"]  # ranked by similarity
-    assert jobs == 3 and stages == {"prefiltered"}
+    # Ranked by similarity. E (₹5 cr vs ₹32 L turnover) is NOT filtered out: tenders set their
+    # own turnover rules, so the eligibility check decides, not a fixed ratio.
+    assert [by_id[t] for t, _ in results] == ["E", "A", "C", "G"]
+    assert jobs == 4 and stages == {"prefiltered"}
 
 
 async def test_reverse_funnel_uses_only_confirmed_profiles(
@@ -140,7 +142,6 @@ async def test_reverse_funnel_uses_only_confirmed_profiles(
         near = await _org(s, confirmed=True, v=vec(1, 0.1))
         far = await _org(s, confirmed=True, v=vec(0.3, 1))
         await _org(s, confirmed=False, v=vec(1, 0))  # draft only: never matched
-        await _org(s, confirmed=True, v=vec(1, 0), turnover=100_000)  # too small for 50L
     async with sessionmaker() as s, s.begin():
         results = await match_tender(s, tid)
     assert [o for o, _ in results] == [near, far]
@@ -163,3 +164,29 @@ async def test_agent_checked_match_is_not_downgraded(sessionmaker: SM, portal_id
         await match_tender(s, tid)
         row = (await s.execute(text("SELECT stage, fit, score FROM matches"))).one()
     assert (row.stage, row.fit) == ("agent_checked", "good") and row.score is not None
+
+
+async def test_demo_tenders_only_match_the_demo_company(sessionmaker: SM, portal_id: int) -> None:
+    async with sessionmaker() as s, s.begin():
+        demo_tender = await _tender(
+            s, portal_id, "D", industries=["electrical_works"], state="Delhi", v=vec(1, 0)
+        )
+        await s.execute(text("UPDATE tenders SET is_demo = true WHERE id = :t"), {"t": demo_tender})
+        real_tender = await _tender(
+            s, portal_id, "R", industries=["electrical_works"], state="Delhi", v=vec(1, 0.1)
+        )
+        real_org = await _org(s, confirmed=True, v=vec(1, 0))
+        demo_org = await _org(s, confirmed=True, v=vec(1, 0))
+        await s.execute(text("UPDATE orgs SET is_demo = true WHERE id = :o"), {"o": demo_org})
+    async with sessionmaker() as s, s.begin():
+        real_profile = await get_confirmed_profile(s, real_org)
+        demo_profile = await get_confirmed_profile(s, demo_org)
+        assert real_profile is not None and demo_profile is not None
+        real_results = await match_profile(s, real_profile)
+        demo_results = await match_profile(s, demo_profile)
+        reverse_demo = await match_tender(s, demo_tender)
+        reverse_real = await match_tender(s, real_tender)
+    assert [t for t, _ in real_results] == [real_tender]
+    assert [t for t, _ in demo_results] == [demo_tender]
+    assert [o for o, _ in reverse_demo] == [demo_org]
+    assert [o for o, _ in reverse_real] == [real_org]

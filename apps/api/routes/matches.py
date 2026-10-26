@@ -28,7 +28,8 @@ MATCH_QUERY = """
            m.score, m.stage, m.fit, m.user_state, m.needs_recheck, m.updated_at,
            r.verdict
     FROM matches m
-    JOIN live_tenders t ON t.id = m.tender_id
+    JOIN live_tenders_incl_demo t ON t.id = m.tender_id
+     AND (NOT t.is_demo OR :include_demo)
     LEFT JOIN LATERAL (
         SELECT verdict FROM eligibility_reports er
         WHERE er.org_id = m.org_id AND er.tender_id = m.tender_id
@@ -60,7 +61,9 @@ def _match(row: Any) -> MatchOut:
     )
 
 
-async def _query(db: AsyncSession, org_id: Any, **filters: Any) -> list[MatchOut]:
+async def _query(
+    db: AsyncSession, org_id: Any, include_demo: bool, **filters: Any
+) -> list[MatchOut]:
     params = {
         "o": org_id,
         "since": None,
@@ -68,6 +71,7 @@ async def _query(db: AsyncSession, org_id: Any, **filters: Any) -> list[MatchOut
         "states": None,
         "industries": None,
         "include_dismissed": False,
+        "include_demo": include_demo,
         **filters,
     }
     rows = (await db.execute(text(MATCH_QUERY), params)).mappings().all()
@@ -86,6 +90,7 @@ async def list_matches(
     return await _query(
         db,
         user.org_id,
+        user.is_admin,
         fit=fit,
         states=state,
         industries=industry,
@@ -106,7 +111,7 @@ async def update_match(tender_id: int, body: MatchUpdate, user: User, db: UserDB
     ).first()
     if updated is None:
         raise HTTPException(404, "match not found")
-    rows = await _query(db, user.org_id, include_dismissed=True)
+    rows = await _query(db, user.org_id, user.is_admin, include_dismissed=True)
     found = next((m for m in rows if m.tender.id == tender_id), None)
     if found is None:
         raise HTTPException(404, "tender no longer open")
@@ -124,7 +129,9 @@ async def stream_matches(user: User) -> StreamingResponse:
         while time.monotonic() < deadline:
             async with get_sessionmaker()() as s, s.begin():
                 await set_org_context(s, user.org_id)
-                changed = await _query(s, user.org_id, since=since, include_dismissed=True)
+                changed = await _query(
+                    s, user.org_id, user.is_admin, since=since, include_dismissed=True
+                )
             if changed:
                 since = max(m.updated_at for m in changed)
                 for m in changed:
@@ -146,7 +153,13 @@ async def request_check(tender_id: int, user: User, db: UserDB) -> dict[str, Any
     Cached per profile version, so asking twice costs nothing."""
     await rate_limit(f"check:{user.org_id}", limit=30, window_s=86400)
     live = (
-        await db.execute(text("SELECT 1 FROM live_tenders WHERE id = :t"), {"t": tender_id})
+        await db.execute(
+            text(
+                "SELECT 1 FROM live_tenders_incl_demo "
+                "WHERE id = :t AND (NOT is_demo OR :include_demo)"
+            ),
+            {"t": tender_id, "include_demo": user.is_admin},
+        )
     ).first()
     if not live:
         raise HTTPException(404, "tender not found or no longer open")
@@ -203,7 +216,13 @@ async def check_status(tender_id: int, user: User, db: UserDB) -> dict[str, Any]
 @router.get("/reports/{tender_id}")
 async def get_report(tender_id: int, user: User, db: UserDB) -> ReportOut:
     live = (
-        await db.execute(text("SELECT 1 FROM live_tenders WHERE id = :t"), {"t": tender_id})
+        await db.execute(
+            text(
+                "SELECT 1 FROM live_tenders_incl_demo "
+                "WHERE id = :t AND (NOT is_demo OR :include_demo)"
+            ),
+            {"t": tender_id, "include_demo": user.is_admin},
+        )
     ).first()
     if not live:
         raise HTTPException(404, "tender not found or no longer open")
