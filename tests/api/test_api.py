@@ -147,6 +147,7 @@ async def test_chat_without_key_is_503(
     api: httpx.AsyncClient, monkeypatch: pytest.MonkeyPatch, sessionmaker: SM, portal_id: int
 ) -> None:
     ids = await _tenders(sessionmaker, portal_id)
+    monkeypatch.setattr(get_settings(), "llm_provider", "anthropic")
     monkeypatch.setattr(get_settings(), "anthropic_api_key", SecretStr(""))
     r = await api.post(
         f"/tenders/{ids['live']}/chat",

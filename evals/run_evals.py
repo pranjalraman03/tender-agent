@@ -235,13 +235,22 @@ async def run(args: argparse.Namespace) -> int:
                     .one()
                 )
                 started = time.monotonic()
-                result = await run_eligibility(s, claude, tender_id, org_id, dict(profile))
+                try:
+                    result = await run_eligibility(s, claude, tender_id, org_id, dict(profile))
+                except Exception as exc:  # one failing case must not abort the whole run
+                    latencies.append(time.monotonic() - started)
+                    f1s.append(0.0)
+                    costs.append(0.0)
+                    row.update(verdict="error", gold_verdict=case.verdict, error=repr(exc)[:300])
+                    per_case.append(row)
+                    continue
                 latencies.append(time.monotonic() - started)
                 ids = sorted({i for f in result.report.findings for i in f.clause_ids})
                 texts: dict[int, str] = dict(
                     (
                         await s.execute(
-                            text("SELECT id, text FROM clauses WHERE id = ANY(:ids)"), {"ids": ids}
+                            text("SELECT id, text FROM clauses WHERE id = ANY(:ids)"),
+                            {"ids": ids},
                         )
                     )
                     .tuples()
