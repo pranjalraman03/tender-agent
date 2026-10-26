@@ -12,6 +12,8 @@ Differences handled here:
   doesn't allow it together with tools, so then the schema is given in the system prompt and
   the JSON is extracted from the final text;
 - effort maps to reasoning_effort (gpt-oss supports low / medium / high);
+- open models sometimes break format: a final answer sent as a call to a made-up tool is
+  recovered, and an "output_parse_failed" rejection is retried (up to 3 tries in total);
 - streaming is emulated (one chunk), which is fine for local testing.
 """
 
@@ -27,7 +29,8 @@ import structlog
 log = structlog.get_logger()
 
 RETRY_STATUS = {408, 409, 429, 500, 502, 503, 504}
-MAX_ATTEMPTS = 4
+MAX_ATTEMPTS = 4  # transport / 429 / 5xx retries per request
+PARSE_FAILURE_ATTEMPTS = 3  # tries when the model output fails the required format
 EFFORT = {"low": "low", "medium": "medium", "high": "high", "xhigh": "high", "max": "high"}
 _FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.MULTILINE)
 
@@ -36,6 +39,41 @@ class CompatAPIError(Exception):
     def __init__(self, status: int, body: str) -> None:
         super().__init__(f"LLM API error {status}: {body[:500]}")
         self.status = status
+        self.body = body
+
+    @property
+    def code(self) -> str | None:
+        """Provider error code, e.g. "tool_use_failed" or "output_parse_failed"."""
+        try:
+            code = json.loads(self.body)["error"].get("code")
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return None
+        return str(code) if code else None
+
+
+def recover_pseudo_tool_answer(exc: CompatAPIError, tool_names: set[str]) -> dict[str, Any] | None:
+    """Open models sometimes return their final JSON answer as a call to a made-up tool (e.g.
+    "JSON"); Groq rejects that with 400 tool_use_failed and includes the generation. If the
+    called tool isn't a real one, its arguments are the answer: turn them into a normal final
+    message. Anything else is re-raised by the caller."""
+    if exc.status != 400:
+        return None
+    try:
+        error = json.loads(exc.body)["error"]
+        if error.get("code") != "tool_use_failed":
+            return None
+        generation = json.loads(error["failed_generation"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if not isinstance(generation, dict) or generation.get("name") in tool_names:
+        return None
+    arguments = generation.get("arguments")
+    if not isinstance(arguments, dict):
+        return None
+    return {
+        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps(arguments)}}],
+        "usage": {},
+    }
 
 
 def _get(block: Any, key: str) -> Any:
@@ -193,7 +231,25 @@ class OpenAICompatClient:
         openai_tools = to_openai_tools(tools)
         if openai_tools:
             body["tools"] = openai_tools
-        data = await self._post(body)
+        for attempt in range(1, PARSE_FAILURE_ATTEMPTS + 1):
+            try:
+                data = await self._post(body)
+                break
+            except CompatAPIError as exc:
+                recovered = recover_pseudo_tool_answer(exc, {t["name"] for t in tools or []})
+                if recovered is not None:
+                    log.info("llm_recovered_pseudo_tool_answer", model=kwargs["model"])
+                    data = recovered
+                    break
+                # The model's output didn't fit the required format (e.g. reasoning text where
+                # strict JSON was required). Sampling varies, so the same request usually
+                # succeeds on another try.
+                if exc.code == "output_parse_failed" and attempt < PARSE_FAILURE_ATTEMPTS:
+                    log.info(
+                        "llm_retry_output_parse_failed", model=kwargs["model"], attempt=attempt
+                    )
+                    continue
+                raise
         return to_claude_shape(data, json_from_text=bool(fmt))
 
     async def _post(self, body: dict[str, Any]) -> dict[str, Any]:

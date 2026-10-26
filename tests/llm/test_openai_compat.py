@@ -151,3 +151,95 @@ async def test_retries_on_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
 
     msg = await _client(handler).create(model="m", messages=[{"role": "user", "content": "x"}])
     assert calls["n"] == 2 and msg.content[0].text == "hi"
+
+
+async def test_recovers_answer_sent_as_pseudo_tool_call() -> None:
+    generation = json.dumps({"name": "JSON", "arguments": {"findings": [{"criterion_id": "C1"}]}})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400,
+            json={
+                "error": {
+                    "code": "tool_use_failed",
+                    "message": "attempted to call tool 'JSON'",
+                    "failed_generation": generation,
+                }
+            },
+        )
+
+    tool = {"name": "search_clauses", "description": "d", "input_schema": {"type": "object"}}
+    msg = await _client(handler).create(
+        model="m",
+        messages=[{"role": "user", "content": "x"}],
+        tools=[tool],
+        output_config={"format": {"type": "json_schema", "schema": {}}},
+    )
+    assert msg.stop_reason == "end_turn"
+    assert json.loads(msg.content[0].text)["findings"][0]["criterion_id"] == "C1"
+
+
+async def test_bad_call_to_a_real_tool_still_raises() -> None:
+    from core.llm.openai_compat import CompatAPIError
+
+    generation = json.dumps({"name": "search_clauses", "arguments": "not-an-object"})
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            400, json={"error": {"code": "tool_use_failed", "failed_generation": generation}}
+        )
+
+    tool = {"name": "search_clauses", "description": "d", "input_schema": {"type": "object"}}
+    with pytest.raises(CompatAPIError):
+        await _client(handler).create(
+            model="m", messages=[{"role": "user", "content": "x"}], tools=[tool]
+        )
+
+
+async def test_output_parse_failure_is_retried() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return httpx.Response(
+                400,
+                json={
+                    "error": {
+                        "code": "output_parse_failed",
+                        "failed_generation": "We need check...",
+                    }
+                },
+            )
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {"content": '{"supported": true, "reason": "ok"}'},
+                    }
+                ]
+            },
+        )
+
+    msg = await _client(handler).create(
+        model="m",
+        messages=[{"role": "user", "content": "x"}],
+        output_config={"format": {"type": "json_schema", "schema": {"type": "object"}}},
+    )
+    assert calls["n"] == 2 and json.loads(msg.content[0].text)["supported"] is True
+
+
+async def test_output_parse_failure_gives_up_after_three_tries() -> None:
+    from core.llm.openai_compat import CompatAPIError
+
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(400, json={"error": {"code": "output_parse_failed"}})
+
+    with pytest.raises(CompatAPIError):
+        await _client(handler).create(model="m", messages=[{"role": "user", "content": "x"}])
+    assert calls["n"] == 3

@@ -274,6 +274,15 @@ async def run(args: argparse.Namespace) -> int:
                 gold_verdict=case.verdict,
                 criterion_f1=round(f1, 3),
                 cost_usd=round(costs[-1], 4),
+                findings=[
+                    {
+                        "criterion": f.criterion[:80],
+                        "status": f.status,
+                        "clause_ids": f.clause_ids,
+                        "note": f.note,
+                    }
+                    for f in result.report.findings
+                ],
             )
             if args.judge and predicted:
                 judged.extend(await judge_citations(claude, predicted))
