@@ -1,0 +1,115 @@
+# Full stack in containers, for a single server (e.g. an Oracle Cloud VM).
+#
+#   cp infra/.env.deploy.example infra/.env.deploy   # fill in secrets; never commit it
+#   docker compose -f infra/docker-compose.deploy.yml --env-file infra/.env.deploy up -d --build
+#
+# Only `web` publishes a port. Postgres, the API, the worker and the scheduler are reachable
+# only on the private compose network. Put a TLS proxy (e.g. Caddy) in front of web:3000.
+
+name: tender-agent
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: infra/Dockerfile.backend
+  image: tender-agent-backend:latest
+  env_file: .env.deploy
+  environment:
+    # The app connects as tender_app (NOT a superuser) so row-level security applies.
+    DATABASE_URL: postgresql+asyncpg://tender_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD}@postgres:5432/tender
+    STORAGE_LOCAL_DIR: /data/storage
+    MODEL_CACHE_DIR: /data/models
+    CORS_ORIGINS: '["${PUBLIC_URL:?set PUBLIC_URL}"]'
+    WEB_BASE_URL: ${PUBLIC_URL}
+  volumes:
+    - storage:/data/storage
+    - models:/data/models
+  restart: unless-stopped
+  depends_on:
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: tender
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: tender
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tender -d tender"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+    # no `ports:` - not reachable from outside the server
+
+  # Runs once per deploy: schema migrations, reference data, the app's database role.
+  migrate:
+    image: tender-agent-backend:latest
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.backend
+    env_file: .env.deploy
+    environment:
+      # Owner account: only this one-shot service uses it.
+      DATABASE_URL: postgresql+asyncpg://tender:${POSTGRES_PASSWORD}@postgres:5432/tender
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD}
+    command: >
+      sh -c "alembic upgrade head
+      && python scripts/seed.py
+      && python scripts/create_app_role.py"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *backend
+    command: ["uvicorn", "apps.api.main:app", "--host", "0.0.0.0", "--port", "8000",
+              "--proxy-headers", "--forwarded-allow-ips", "*"]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    <<: *backend
+    command: ["python", "-m", "apps.worker.main"]
+
+  scheduler:
+    <<: *backend
+    command: ["python", "-m", "apps.scheduler.main"]
+
+  web:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.web
+    image: tender-agent-web:latest
+    environment:
+      API_URL: http://api:8000
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET}
+      AUTH_URL: ${PUBLIC_URL}
+      AUTH_TRUST_HOST: "true"
+      AUTH_DATABASE_URL: postgres://tender_app:${APP_DB_PASSWORD}@postgres:5432/tender
+      AUTH_DEV_LOGIN: "false"
+      AUTH_RESEND_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      AUTH_GOOGLE_ID: ${AUTH_GOOGLE_ID:-}
+      AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:-}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  storage:   # tender PDFs and company documents (shared by api + worker)
+  models:    # local embedding / rerank models, downloaded on first use (~1.3 GB)

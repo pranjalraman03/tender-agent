@@ -9,3 +9,6 @@ node_modules/
 .next/
 .DS_Store
 var/
+
+# Deployment secrets (keep the .example)
+infra/.env.deploy

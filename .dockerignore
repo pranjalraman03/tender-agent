@@ -1,9 +1,19 @@
-.venv
-.git
+# Never send secrets or local data into an image build.
 .env
+.env.*
+!.env.example
+**/.env.local
+**/.env.deploy
+infra/.env.deploy
+var
+.git
+.venv
 **/__pycache__
 .mypy_cache
 .pytest_cache
 .ruff_cache
 apps/web/node_modules
 apps/web/.next
+apps/web/public/pdf.worker.min.mjs
+evals
+tests

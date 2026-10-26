@@ -45,3 +45,19 @@ uv run pytest
 uv run python evals/run_evals.py            # add --agent once the API key is set
 pnpm --dir apps/web lint && pnpm --dir apps/web typecheck && pnpm --dir apps/web build
 ```
+
+## Deploy with Docker (single server)
+
+Everything runs in containers: `postgres`, `migrate` (one-shot), `api`, `worker`,
+`scheduler`, `web`. Only `web` is exposed. See ADR 0008.
+
+```bash
+cp infra/.env.deploy.example infra/.env.deploy      # fill in secrets on the server only
+docker compose -f infra/docker-compose.deploy.yml --env-file infra/.env.deploy up -d --build
+docker compose -f infra/docker-compose.deploy.yml --env-file infra/.env.deploy ps
+docker compose -f infra/docker-compose.deploy.yml --env-file infra/.env.deploy logs -f worker
+```
+
+- Development login is always off in this stack: set `RESEND_API_KEY` and/or Google OAuth.
+- Put a TLS proxy (e.g. Caddy) in front of port 3000 and set `PUBLIC_URL` to the https address.
+- The first embedding call downloads the local models (~1.3 GB) into the `models` volume.

@@ -17,7 +17,7 @@ API queries still filter by `org_id` explicitly; RLS is the backstop if one forg
 
 ## Important
 **Superusers and roles with BYPASSRLS ignore RLS entirely.** The application must connect as a
-plain role (`scripts/create_app_role.sql`), and migrations as the owner. The local Docker
+plain role (`scripts/create_app_role.py`), and migrations as the owner. The local Docker
 user is a superuser, so the RLS test switches to a non-superuser role with `SET LOCAL ROLE`.
 
 ## Trade-off

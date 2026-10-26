@@ -1,0 +1,32 @@
+# syntax=docker/dockerfile:1
+# Next.js web app, built as a standalone server. Build context: the repository root.
+
+FROM node:24-slim AS base
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm install -g pnpm@12.15.0
+WORKDIR /app
+
+# --- deps: install exactly the locked versions ----------------------------------------------
+FROM base AS deps
+COPY apps/web/package.json apps/web/pnpm-lock.yaml apps/web/pnpm-workspace.yaml ./
+COPY apps/web/scripts ./scripts
+# postinstall copies the matching PDF.js worker into public/
+RUN pnpm install --frozen-lockfile
+
+# --- build ---------------------------------------------------------------------------------
+FROM base AS build
+COPY --from=deps /app/node_modules ./node_modules
+COPY apps/web ./
+COPY --from=deps /app/public/pdf.worker.min.mjs ./public/pdf.worker.min.mjs
+RUN pnpm build
+
+# --- runtime: standalone server only, non-root ---------------------------------------------
+FROM node:24-slim AS runtime
+ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
+WORKDIR /app
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+USER node
+EXPOSE 3000
+CMD ["node", "server.js"]
