@@ -1,0 +1,11 @@
+https://eproc2.bihar.gov.in/EPSV2Web/openarea/tenderListingPage.action
+https://jharkhandtenders.gov.in/nicgep/app
+https://mpmsme.gov.in/website/e-tender-and-e-auction
+https://mptenders.gov.in/nicgep/app?page=FrontEndTendersByOrganisation&service=page
+https://mahatenders.gov.in/nicgep/app
+https://eprocure.gov.in/eprocure/app?component=view&page=WebTenderStatusLists&service=direct&sp=SvnQ55hdxF5y6MWc4YrEHQA%3D%3D
+https://govtprocurement.delhi.gov.in/nicgep/app?component=%24DirectLink_0&page=FrontEndAdvancedSearchResult&service=direct&sp=SwuQNFkyREOUgQdsFd%2FK6jw%3D%3D
+https://kctu.karnataka.gov.in/114/tenders/en
+https://eprocure.gov.in/eprocure/app?component=%24DirectLink&page=FrontEndLatestActiveTenders&service=direct&sp=S9Ax9rIpQWGqtNYsGhxVAlg%3D%3D
+https://msme.haryana.gov.in/category/tender/
+https://etenders.hry.nic.in/nicgep/app?component=%24DirectLink&page=FrontEndViewTender&service=direct&sp=SvB6tvkzErqAMxTbiHqM%2F8w%3D%3D
